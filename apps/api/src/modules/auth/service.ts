@@ -2,6 +2,7 @@ import { normalizeTenantId } from '@myrophone/shared';
 import { env } from '../../core/config/env';
 import { getPrisma } from '../../core/db/prisma';
 import { AppError } from '../../core/errors/app-error';
+import { chooseActiveTenantId } from './company-selection';
 import {
   type ActionLogRecord,
   asType,
@@ -854,7 +855,6 @@ export async function loginWithPassword(
   input: {
     email: string;
     password: string;
-    tenantSlug?: string;
   },
   requestMeta: RequestMeta,
 ): Promise<AuthResponse> {
@@ -884,61 +884,31 @@ export async function loginWithPassword(
     });
   }
 
-  let tenantId: string;
+  const memberships = asType<
+    Array<{ tenantId: string; createdAt: Date; status: string }>
+  >(
+    await prisma.membership.findMany({
+      where: { userId: user.id },
+      select: { tenantId: true, createdAt: true, status: true },
+    }),
+  );
+  const tenantId = chooseActiveTenantId(memberships, user.lastTenantId);
 
-  if (input.tenantSlug) {
-    const tenant = asType<{ id: string } | null>(
-      await prisma.tenant.findUnique({
-        where: {
-          slug: normalizeTenantSlug(input.tenantSlug),
-        },
-        select: {
-          id: true,
-        },
-      }),
+  if (tenantId === null) {
+    const opened = await createAccountSessionTokens(prisma, user, requestMeta);
+
+    await createActionLog(prisma, {
+      actorUserId: user.id,
+      action: 'auth.login',
+      entityType: 'session',
+      entityId: opened.tokens.sessionId,
+      requestMeta,
+    });
+
+    return attachTokens(
+      toAccountContext(user, opened.tokens.sessionId, []),
+      opened.tokens,
     );
-
-    if (!tenant) {
-      throw new AppError({
-        statusCode: 404,
-        code: 'TENANT_NOT_FOUND',
-        message: 'Tenant not found.',
-      });
-    }
-
-    tenantId = tenant.id;
-  } else {
-    const activeMemberships = asType<Array<{ tenantId: string }>>(
-      await prisma.membership.findMany({
-        where: {
-          userId: user.id,
-          status: MEMBERSHIP_ACTIVE,
-        },
-        select: {
-          tenantId: true,
-        },
-        take: 2,
-      }),
-    );
-
-    if (activeMemberships.length === 0) {
-      throw new AppError({
-        statusCode: 403,
-        code: 'NO_ACTIVE_TENANT',
-        message: 'User has no active tenant membership.',
-      });
-    }
-
-    if (activeMemberships.length > 1) {
-      throw new AppError({
-        statusCode: 400,
-        code: 'TENANT_REQUIRED',
-        message:
-          'This user belongs to multiple tenants. Inform tenantSlug to login.',
-      });
-    }
-
-    tenantId = activeMemberships[0].tenantId;
   }
 
   const membership = await findActiveMembership(prisma, user.id, tenantId);
@@ -951,6 +921,10 @@ export async function loginWithPassword(
     });
   }
 
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastTenantId: tenantId },
+  });
   const tokenSet = await createSessionTokens(prisma, membership, requestMeta);
   const companies = await listActiveCompanies(prisma, membership.userId);
 

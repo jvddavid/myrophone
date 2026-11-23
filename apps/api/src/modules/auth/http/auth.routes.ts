@@ -20,7 +20,6 @@ const registerBodySchema = t.Object({
 const loginBodySchema = t.Object({
   email: t.String({ format: 'email' }),
   password: t.String({ minLength: 8 }),
-  tenantSlug: t.Optional(t.String({ minLength: 2 })),
 });
 
 const refreshBodySchema = t.Object({
