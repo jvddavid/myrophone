@@ -6,7 +6,7 @@ const secret = new TextEncoder().encode(env.JWT_SECRET);
 export interface AccessTokenPayload {
   sub: string;
   sid: string;
-  tenantId: string;
+  tenantId: string | null;
   email: string;
   exp?: number;
   iat?: number;
@@ -15,14 +15,19 @@ export interface AccessTokenPayload {
 export async function signAccessToken(payload: {
   userId: string;
   sessionId: string;
-  tenantId: string;
+  tenantId: string | null;
   email: string;
 }): Promise<string> {
-  return new SignJWT({
+  const claims: Record<string, string> = {
     sid: payload.sessionId,
-    tenantId: payload.tenantId,
     email: payload.email,
-  })
+  };
+
+  if (payload.tenantId) {
+    claims.tenantId = payload.tenantId;
+  }
+
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(payload.userId)
     .setIssuedAt()
@@ -39,13 +44,13 @@ export async function verifyAccessToken(
 
     const sub = payload.sub;
     const sid = claimBag.sid;
-    const tenantId = claimBag.tenantId;
+    const tenantId = claimBag.tenantId ?? null;
     const email = claimBag.email;
 
     if (
       typeof sub !== 'string' ||
       typeof sid !== 'string' ||
-      typeof tenantId !== 'string' ||
+      (tenantId !== null && typeof tenantId !== 'string') ||
       typeof email !== 'string'
     ) {
       return null;
