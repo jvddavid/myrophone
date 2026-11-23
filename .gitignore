@@ -13,3 +13,4 @@ dist
 .zed
 .tanstack
 worker-configuration.d.ts
+.worktrees/
