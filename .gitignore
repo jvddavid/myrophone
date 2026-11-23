@@ -1,0 +1,13 @@
+node_modules
+bun.lock
+.env
+.env.*
+.DS_Store
+coverage
+dist
+.wrangler
+.cloudflare
+.bun-cache
+.npm-cache
+.wrangler-home
+.zed

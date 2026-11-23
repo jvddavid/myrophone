@@ -1,0 +1,11 @@
+name = "myrophone-cfworker"
+main = "src/index.ts"
+compatibility_date = "2026-11-06"
+
+[vars]
+API_ORIGIN = "https://api.myrophone.com"
+
+[[d1_databases]]
+binding = "TENANT_DB"
+database_name = "myrophone-tenant-template"
+database_id = "00000000-0000-0000-0000-000000000000"

@@ -1,0 +1,19 @@
+{
+  "name": "myrophone",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "bun run --cwd apps/api dev",
+    "dev:web": "bun run --cwd apps/web dev",
+    "dev:worker": "bun run --cwd apps/worker dev",
+    "dev:workflows": "bun run --cwd apps/workflows dev",
+    "dev:cfworker": "bun run --cwd apps/cfworker dev",
+    "test": "bun run --cwd apps/api test && bun run --cwd apps/worker test",
+    "lint": "bun run --cwd apps/api lint && bun run --cwd apps/web lint && bun run --cwd apps/worker lint && bun run --cwd apps/workflows lint && bun run --cwd apps/cfworker lint && bun run --cwd packages/shared lint"
+  }
+}

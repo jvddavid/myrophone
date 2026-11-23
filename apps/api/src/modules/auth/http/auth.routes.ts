@@ -1,0 +1,132 @@
+import { Elysia, t } from 'elysia';
+import { AppError } from '../../../core/errors/app-error';
+import { logger } from '../../../core/logger';
+import { getRequestMeta } from '../request-meta';
+import {
+  loginWithPassword,
+  logoutByRefreshToken,
+  refreshAuthSession,
+  registerTenantOwner,
+  requireAuthContext,
+} from '../service';
+
+const teamPermissionKeySchema = t.Union([
+  t.Literal('dashboard.view'),
+  t.Literal('management.view'),
+  t.Literal('deliveries.view'),
+  t.Literal('sales.view'),
+  t.Literal('support.view'),
+  t.Literal('reports.view'),
+]);
+
+const registerBodySchema = t.Object({
+  tenantName: t.String({ minLength: 2 }),
+  tenantSlug: t.Optional(t.String({ minLength: 2 })),
+  initialTeamName: t.Optional(t.String({ minLength: 2 })),
+  initialTeamSlug: t.Optional(t.String({ minLength: 2 })),
+  initialTeamPermissionKeys: t.Optional(t.Array(teamPermissionKeySchema)),
+  name: t.String({ minLength: 2 }),
+  email: t.String({ format: 'email' }),
+  password: t.String({ minLength: 8 }),
+});
+
+const loginBodySchema = t.Object({
+  email: t.String({ format: 'email' }),
+  password: t.String({ minLength: 8 }),
+  tenantSlug: t.Optional(t.String({ minLength: 2 })),
+});
+
+const refreshBodySchema = t.Object({
+  refreshToken: t.String({ minLength: 10 }),
+});
+
+function toErrorResponse(
+  error: unknown,
+  status: (code: number, body: unknown) => unknown,
+): unknown {
+  if (error instanceof AppError) {
+    return status(error.statusCode, {
+      error: error.code,
+      message: error.message,
+      details: error.details,
+    });
+  }
+
+  logger.error({ err: error }, 'Unexpected error in auth routes');
+  return status(500, {
+    error: 'INTERNAL_SERVER_ERROR',
+    message: 'An unexpected error happened.',
+  });
+}
+
+export const authRoutes = new Elysia()
+  .post(
+    '/auth/register',
+    async ({ body, request, status }) => {
+      try {
+        const result = await registerTenantOwner(body, getRequestMeta(request));
+        return status(201, result);
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: registerBodySchema,
+    },
+  )
+  .post(
+    '/auth/login',
+    async ({ body, request, status }) => {
+      try {
+        return await loginWithPassword(body, getRequestMeta(request));
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: loginBodySchema,
+    },
+  )
+  .post(
+    '/auth/refresh',
+    async ({ body, request, status }) => {
+      try {
+        return await refreshAuthSession(
+          body.refreshToken,
+          getRequestMeta(request),
+        );
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: refreshBodySchema,
+    },
+  )
+  .post(
+    '/auth/logout',
+    async ({ body, request, status }) => {
+      try {
+        const revoked = await logoutByRefreshToken(
+          body.refreshToken,
+          getRequestMeta(request),
+        );
+
+        return {
+          revoked,
+        };
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: refreshBodySchema,
+    },
+  )
+  .get('/auth/me', async ({ request, status }) => {
+    try {
+      return await requireAuthContext(request);
+    } catch (error) {
+      return toErrorResponse(error, status);
+    }
+  });

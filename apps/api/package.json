@@ -1,0 +1,40 @@
+{
+  "name": "@myrophone/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:db:push": "prisma db push",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "bun prisma/seed.ts"
+  },
+  "dependencies": {
+    "@myrophone/shared": "workspace:*",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "bcryptjs": "^3.0.3",
+    "bullmq": "^6.7.1",
+    "elysia": "^1.4.31",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.17",
+    "pg": "^8.16.3",
+    "pino": "^10.4.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "@types/bun": "^1.4.4",
+    "prisma": "7.10.1",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0"
+  }
+}
