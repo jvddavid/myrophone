@@ -1319,6 +1319,26 @@ export async function requireAuthContext(
   return authContext;
 }
 
+export function requireTenantContext(auth: AuthContext): AuthContext & {
+  membershipId: string;
+  tenant: { id: string; slug: string; name: string };
+  role: string;
+} {
+  if (!auth.tenant || !auth.membershipId || !auth.role) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'NO_ACTIVE_TENANT',
+      message: 'An active company is required.',
+    });
+  }
+
+  return auth as AuthContext & {
+    membershipId: string;
+    tenant: { id: string; slug: string; name: string };
+    role: string;
+  };
+}
+
 export function ensurePermission(
   authContext: AuthContext,
   permissionKey: string,

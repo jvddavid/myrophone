@@ -1,7 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { AppError } from '../../../core/errors/app-error';
 import { logger } from '../../../core/logger';
-import { ensurePermission, requireAuthContext } from '../../auth/service';
+import {
+  ensurePermission,
+  requireAuthContext,
+  requireTenantContext,
+} from '../../auth/service';
 import {
   enqueueTenantHierarchyExportJob,
   getTenantHierarchyExportFile,
@@ -34,7 +38,7 @@ function toErrorResponse(
 export const jobsRoutes = new Elysia()
   .post('/jobs/tenant-hierarchy-export', async ({ request, status }) => {
     try {
-      const auth = await requireAuthContext(request);
+      const auth = requireTenantContext(await requireAuthContext(request));
       ensurePermission(auth, 'users.read');
       ensurePermission(auth, 'teams.read');
 
@@ -54,7 +58,7 @@ export const jobsRoutes = new Elysia()
     '/jobs/tenant-hierarchy-export/:jobId',
     async ({ params, request, status }) => {
       try {
-        const auth = await requireAuthContext(request);
+        const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'users.read');
         ensurePermission(auth, 'teams.read');
 
@@ -74,7 +78,7 @@ export const jobsRoutes = new Elysia()
     '/jobs/tenant-hierarchy-export/:jobId/file',
     async ({ params, request, status }) => {
       try {
-        const auth = await requireAuthContext(request);
+        const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'users.read');
         ensurePermission(auth, 'teams.read');
 

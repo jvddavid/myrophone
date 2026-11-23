@@ -12,6 +12,7 @@ import {
   listTenantUsers,
   removeTeamMember,
   requireAuthContext,
+  requireTenantContext,
   updateTeamPermissions,
 } from '../service';
 
@@ -95,7 +96,7 @@ function toErrorResponse(
 export const managementRoutes = new Elysia()
   .get('/tenants/current', async ({ request, status }) => {
     try {
-      const auth = await requireAuthContext(request);
+      const auth = requireTenantContext(await requireAuthContext(request));
       ensurePermission(auth, 'tenant.read');
 
       return {
@@ -123,7 +124,7 @@ export const managementRoutes = new Elysia()
   })
   .get('/teams', async ({ request, status }) => {
     try {
-      const auth = await requireAuthContext(request);
+      const auth = requireTenantContext(await requireAuthContext(request));
       ensurePermission(auth, 'teams.read');
 
       return {
@@ -137,7 +138,7 @@ export const managementRoutes = new Elysia()
     '/teams',
     async ({ body, request, status }) => {
       try {
-        const auth = await requireAuthContext(request);
+        const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'teams.manage');
 
         const team = await createTenantTeam(
@@ -166,7 +167,7 @@ export const managementRoutes = new Elysia()
     '/teams/:teamId/permissions',
     async ({ params, body, request, status }) => {
       try {
-        const auth = await requireAuthContext(request);
+        const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'teams.manage');
 
         return await updateTeamPermissions(
@@ -191,7 +192,7 @@ export const managementRoutes = new Elysia()
     '/teams/:teamId/members',
     async ({ params, body, request, status }) => {
       try {
-        const auth = await requireAuthContext(request);
+        const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'teams.members.manage');
 
         return await addTeamMember(
@@ -216,7 +217,7 @@ export const managementRoutes = new Elysia()
     '/teams/:teamId/members/:userId',
     async ({ params, request, status }) => {
       try {
-        const auth = await requireAuthContext(request);
+        const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'teams.members.manage');
 
         return await removeTeamMember(
@@ -237,7 +238,7 @@ export const managementRoutes = new Elysia()
   )
   .get('/users', async ({ request, status }) => {
     try {
-      const auth = await requireAuthContext(request);
+      const auth = requireTenantContext(await requireAuthContext(request));
       ensurePermission(auth, 'users.read');
 
       return {
@@ -251,7 +252,7 @@ export const managementRoutes = new Elysia()
     '/users',
     async ({ body, request, status }) => {
       try {
-        const auth = await requireAuthContext(request);
+        const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'users.manage');
 
         const user = await createTenantUser(
@@ -281,7 +282,7 @@ export const managementRoutes = new Elysia()
     '/action-logs',
     async ({ query, request, status }) => {
       try {
-        const auth = await requireAuthContext(request);
+        const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'logs.read');
 
         return {
