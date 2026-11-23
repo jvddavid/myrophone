@@ -11,3 +11,5 @@ dist
 .npm-cache
 .wrangler-home
 .zed
+.tanstack
+worker-configuration.d.ts
