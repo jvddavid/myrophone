@@ -3,6 +3,7 @@ import { AppError } from '../../../core/errors/app-error';
 import { logger } from '../../../core/logger';
 import { getRequestMeta } from '../request-meta';
 import {
+  createFirstCompany,
   loginWithPassword,
   logoutByRefreshToken,
   refreshAuthSession,
@@ -23,6 +24,11 @@ const loginBodySchema = t.Object({
 });
 
 const refreshBodySchema = t.Object({
+  refreshToken: t.String({ minLength: 10 }),
+});
+
+const createCompanyBodySchema = t.Object({
+  name: t.String({ minLength: 2 }),
   refreshToken: t.String({ minLength: 10 }),
 });
 
@@ -71,6 +77,28 @@ export const authRoutes = new Elysia()
     },
     {
       body: loginBodySchema,
+    },
+  )
+  .post(
+    '/auth/companies',
+    async ({ body, request, status }) => {
+      try {
+        const auth = await requireAuthContext(request);
+        return await createFirstCompany(
+          {
+            userId: auth.user.id,
+            sessionId: auth.sessionId,
+            name: body.name,
+            refreshToken: body.refreshToken,
+          },
+          getRequestMeta(request),
+        );
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: createCompanyBodySchema,
     },
   )
   .post(

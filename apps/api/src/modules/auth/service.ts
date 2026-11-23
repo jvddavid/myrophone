@@ -2,7 +2,7 @@ import { normalizeTenantId } from '@myrophone/shared';
 import { env } from '../../core/config/env';
 import { getPrisma } from '../../core/db/prisma';
 import { AppError } from '../../core/errors/app-error';
-import { chooseActiveTenantId } from './company-selection';
+import { chooseActiveTenantId, withSlugSuffix } from './company-selection';
 import {
   type ActionLogRecord,
   asType,
@@ -599,82 +599,118 @@ async function createAccountSessionTokens(
   };
 }
 
-export async function registerTenantOwner(
+async function reissueAccessToken(
+  session: SessionRecord,
+  user: { id: string; email: string },
+  tenantId: string,
+): Promise<SessionTokenSet['accessToken']> {
+  return signAccessToken({
+    userId: user.id,
+    sessionId: session.id,
+    tenantId,
+    email: user.email,
+  });
+}
+
+async function assertCurrentRefreshToken(
+  session: SessionRecord,
+  refreshToken: string,
+): Promise<void> {
+  const refreshTokenHash = await hashOpaqueToken(refreshToken);
+
+  if (
+    session.refreshTokenHash !== refreshTokenHash ||
+    session.revokedAt ||
+    session.expiresAt.getTime() <= Date.now()
+  ) {
+    throw new AppError({
+      statusCode: 401,
+      code: 'INVALID_REFRESH_TOKEN',
+      message: 'Refresh token is invalid or already revoked.',
+    });
+  }
+}
+
+export async function createFirstCompany(
   input: {
-    tenantName: string;
-    tenantSlug?: string;
-    initialTeamName?: string;
-    initialTeamSlug?: string;
-    initialTeamPermissionKeys?: TeamPermissionKey[];
+    userId: string;
+    sessionId: string;
     name: string;
-    email: string;
-    password: string;
+    refreshToken: string;
   },
   requestMeta: RequestMeta,
 ): Promise<AuthResponse> {
-  if (input.password.length < 8) {
+  const prisma = await getPrisma();
+
+  const session = asType<SessionRecord | null>(
+    await prisma.session.findUnique({
+      where: { id: input.sessionId },
+    }),
+  );
+
+  if (!session || session.userId !== input.userId) {
     throw new AppError({
-      statusCode: 400,
-      code: 'INVALID_PASSWORD',
-      message: 'Password must have at least 8 characters.',
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+      message: 'Authentication is required.',
     });
   }
 
-  const prisma = await getPrisma();
-  const tenantSlug = normalizeTenantSlug(input.tenantSlug ?? input.tenantName);
-  const normalizedEmail = normalizeEmail(input.email);
+  await assertCurrentRefreshToken(session, input.refreshToken);
+
+  const user = asType<UserRecord | null>(
+    await prisma.user.findUnique({ where: { id: input.userId } }),
+  );
+
+  if (!user || !user.isActive) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'USER_DISABLED',
+      message: 'User is disabled.',
+    });
+  }
+
+  const name = input.name.trim();
 
   const result = await prisma.$transaction(async (transaction) => {
-    const existingTenant = asType<{ id: string } | null>(
-      await transaction.tenant.findUnique({
-        where: { slug: tenantSlug },
-        select: { id: true },
+    const activeCount = asType<number>(
+      await transaction.membership.count({
+        where: { userId: user.id, status: MEMBERSHIP_ACTIVE },
       }),
     );
 
-    if (existingTenant) {
+    if (activeCount > 0) {
       throw new AppError({
-        statusCode: 409,
-        code: 'TENANT_SLUG_IN_USE',
-        message: 'Tenant slug is already in use.',
+        statusCode: 403,
+        code: 'COMPANY_CREATE_UNAVAILABLE',
+        message: 'This account already has an active company.',
       });
     }
 
-    const existingUser = asType<{ id: string } | null>(
-      await transaction.user.findUnique({
-        where: { email: normalizedEmail },
-        select: { id: true },
-      }),
-    );
+    const base = normalizeTenantSlug(name);
+    let slug = base;
 
-    if (existingUser) {
-      throw new AppError({
-        statusCode: 409,
-        code: 'EMAIL_IN_USE',
-        message: 'Email is already in use.',
-      });
+    for (let attempt = 1; attempt <= 50; attempt += 1) {
+      slug = withSlugSuffix(base, attempt);
+      const existing = asType<{ id: string } | null>(
+        await transaction.tenant.findUnique({
+          where: { slug },
+          select: { id: true },
+        }),
+      );
+
+      if (!existing) {
+        break;
+      }
     }
 
     const tenant = asType<{ id: string }>(
       await transaction.tenant.create({
-        data: {
-          name: input.tenantName.trim(),
-          slug: tenantSlug,
-        },
+        data: { name, slug },
       }),
     );
 
     const roleIds = await ensureTenantRbac(transaction, tenant.id);
-
-    const user = asType<{ id: string; email: string }>(
-      await transaction.user.create({
-        data: {
-          name: input.name.trim(),
-          email: normalizedEmail,
-          passwordHash: await hashPassword(input.password),
-        },
-      }),
-    );
 
     const membership = asType<{ id: string }>(
       await transaction.membership.create({
@@ -684,14 +720,8 @@ export async function registerTenantOwner(
           roleId: roleIds.OWNER,
           status: MEMBERSHIP_ACTIVE,
         },
-        select: {
-          id: true,
-        },
+        select: { id: true },
       }),
-    );
-
-    const teamSlug = normalizeTeamSlug(
-      input.initialTeamSlug ?? input.initialTeamName ?? DEFAULT_TEAM_SLUG,
     );
 
     const team = asType<{ id: string }>(
@@ -699,29 +729,24 @@ export async function registerTenantOwner(
         where: {
           tenantId_slug: {
             tenantId: tenant.id,
-            slug: teamSlug,
+            slug: DEFAULT_TEAM_SLUG,
           },
         },
         update: {
-          name: input.initialTeamName ?? DEFAULT_TEAM_NAME,
+          name: DEFAULT_TEAM_NAME,
           isActive: true,
         },
         create: {
           tenantId: tenant.id,
-          slug: teamSlug,
-          name: input.initialTeamName ?? DEFAULT_TEAM_NAME,
+          slug: DEFAULT_TEAM_SLUG,
+          name: DEFAULT_TEAM_NAME,
           isActive: true,
         },
-        select: {
-          id: true,
-        },
+        select: { id: true },
       }),
     );
 
-    const permissionIds = await resolveTeamPermissionIds(
-      transaction,
-      input.initialTeamPermissionKeys,
-    );
+    const permissionIds = await resolveTeamPermissionIds(transaction, []);
 
     await assignTeamPermissions(transaction, team.id, permissionIds);
 
@@ -732,9 +757,7 @@ export async function registerTenantOwner(
           membershipId: membership.id,
         },
       },
-      update: {
-        role: 'LEADER',
-      },
+      update: { role: 'LEADER' },
       create: {
         teamId: team.id,
         membershipId: membership.id,
@@ -742,11 +765,21 @@ export async function registerTenantOwner(
       },
     });
 
+    await transaction.session.update({
+      where: { id: session.id },
+      data: { tenantId: tenant.id },
+    });
+
+    await transaction.user.update({
+      where: { id: user.id },
+      data: { lastTenantId: tenant.id },
+    });
+
     await createActionLog(transaction, {
       tenantId: tenant.id,
       teamId: team.id,
       actorUserId: user.id,
-      action: 'auth.register',
+      action: 'companies.create',
       entityType: 'tenant',
       entityId: tenant.id,
       metadata: {
@@ -755,15 +788,12 @@ export async function registerTenantOwner(
       requestMeta,
     });
 
-    return {
-      tenantId: tenant.id,
-      userId: user.id,
-    };
+    return { tenantId: tenant.id };
   });
 
   const membership = await findActiveMembership(
     prisma,
-    result.userId,
+    user.id,
     result.tenantId,
   );
 
@@ -775,9 +805,24 @@ export async function registerTenantOwner(
     });
   }
 
-  const tokenSet = await createSessionTokens(prisma, membership, requestMeta);
-  const companies = await listActiveCompanies(prisma, membership.userId);
-  return toAuthResponse(membership, tokenSet, companies);
+  const accessToken = await reissueAccessToken(
+    session,
+    user,
+    result.tenantId,
+  );
+  const companies = await listActiveCompanies(prisma, user.id);
+
+  return toAuthResponse(
+    membership,
+    {
+      sessionId: session.id,
+      accessToken,
+      refreshToken: input.refreshToken,
+      accessTokenTtl: env.JWT_ACCESS_TTL,
+      refreshTokenExpiresAt: session.expiresAt.toISOString(),
+    },
+    companies,
+  );
 }
 
 export async function registerAccount(
