@@ -23,9 +23,10 @@ export function AuthenticatedLayout() {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-6 py-4">
           <div>
-            <p className="text-sm font-medium">{auth.tenant.name}</p>
+            <p className="text-sm font-medium">{auth.tenant?.name ?? 'MyroPhone'}</p>
             <p className="text-xs text-muted-foreground">
-              {displayName} · {auth.role}
+              {displayName}
+              {auth.role ? ` · ${auth.role}` : ''}
             </p>
           </div>
           <Button onClick={logout} type="button" variant="outline">

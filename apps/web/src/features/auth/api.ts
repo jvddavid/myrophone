@@ -15,20 +15,39 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isCompany(
+  value: unknown,
+): value is { id: string; slug: string; name: string } {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.slug === 'string' &&
+    typeof value.name === 'string'
+  );
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
 function isAuthProfile(value: unknown): value is AuthProfile {
-  if (!isRecord(value) || !isRecord(value.user) || !isRecord(value.tenant)) {
+  if (!isRecord(value) || !isRecord(value.user)) {
     return false;
   }
 
   return (
     typeof value.sessionId === 'string' &&
-    typeof value.membershipId === 'string' &&
+    isNullableString(value.membershipId) &&
     typeof value.user.id === 'string' &&
     typeof value.user.email === 'string' &&
-    typeof value.tenant.id === 'string' &&
-    typeof value.tenant.slug === 'string' &&
-    typeof value.tenant.name === 'string' &&
-    typeof value.role === 'string' &&
+    isNullableString(value.user.phone) &&
+    isNullableString(value.user.avatarUrl) &&
+    (value.user.emailVerifiedAt === null ||
+      isTimestamp(value.user.emailVerifiedAt)) &&
+    (value.tenant === null || isCompany(value.tenant)) &&
+    Array.isArray(value.companies) &&
+    value.companies.every(isCompany) &&
+    isNullableString(value.role) &&
     Array.isArray(value.permissions) &&
     Array.isArray(value.teams) &&
     Array.isArray(value.teamPermissions)
@@ -114,19 +133,11 @@ function readProfile(data: unknown): AuthProfile {
 export async function loginRequest(input: {
   email: string;
   password: string;
-  tenantSlug?: string;
 }): Promise<AuthSession> {
-  const body = input.tenantSlug
-    ? {
-        email: input.email,
-        password: input.password,
-        tenantSlug: input.tenantSlug,
-      }
-    : {
-        email: input.email,
-        password: input.password,
-      };
-  const { data, error } = await getApi().auth.login.post(body);
+  const { data, error } = await getApi().auth.login.post({
+    email: input.email,
+    password: input.password,
+  });
 
   if (error) {
     throw toAuthRequestError(error);
@@ -136,12 +147,17 @@ export async function loginRequest(input: {
 }
 
 export async function registerRequest(input: {
-  tenantName: string;
   name: string;
+  phone: string;
   email: string;
   password: string;
 }): Promise<AuthSession> {
-  const { data, error } = await getApi().auth.register.post(input);
+  const { data, error } = await getApi().auth.register.post({
+    name: input.name,
+    phone: input.phone,
+    email: input.email,
+    password: input.password,
+  });
 
   if (error) {
     throw toAuthRequestError(error);

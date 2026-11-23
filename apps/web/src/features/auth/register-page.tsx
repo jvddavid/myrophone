@@ -4,19 +4,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AuthRequestError, registerRequest } from './api';
 import { AuthScreen } from './auth-screen';
+import { registerPasswordError } from './register-form';
 import { saveSession } from './session';
 
 interface RegisterValues {
-  tenantName: string;
   name: string;
+  phone: string;
   email: string;
   password: string;
   confirmPassword: string;
 }
 
 const emptyValues: RegisterValues = {
-  tenantName: '',
   name: '',
+  phone: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -37,8 +38,13 @@ export function RegisterPage() {
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      if (values.password !== values.confirmPassword) {
-        setError('As senhas não coincidem.');
+      const passwordError = registerPasswordError(
+        values.password,
+        values.confirmPassword,
+      );
+
+      if (passwordError) {
+        setError(passwordError);
         return;
       }
 
@@ -46,8 +52,8 @@ export function RegisterPage() {
       setError(null);
 
       void registerRequest({
-        tenantName: values.tenantName.trim(),
         name: values.name.trim(),
+        phone: values.phone.trim(),
         email: values.email.trim(),
         password: values.password,
       })
@@ -72,7 +78,7 @@ export function RegisterPage() {
 
   return (
     <AuthScreen
-      description="Crie a empresa e a conta de proprietário."
+      description="Crie a conta para entrar no painel."
       error={error}
       alternateLabel="Entrar"
       alternatePrompt="Já tem conta?"
@@ -80,20 +86,8 @@ export function RegisterPage() {
       onSubmit={onSubmit}
       pending={pending}
       submitLabel="Criar conta"
-      title="Criar empresa"
+      title="Criar conta"
     >
-      <div className="space-y-2">
-        <Label htmlFor="tenantName">Empresa</Label>
-        <Input
-          autoComplete="organization"
-          id="tenantName"
-          minLength={2}
-          name="tenantName"
-          onChange={onChange}
-          required
-          value={values.tenantName}
-        />
-      </div>
       <div className="space-y-2">
         <Label htmlFor="name">Seu nome</Label>
         <Input
@@ -104,6 +98,20 @@ export function RegisterPage() {
           onChange={onChange}
           required
           value={values.name}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="phone">Telefone</Label>
+        <Input
+          autoComplete="tel"
+          id="phone"
+          maxLength={20}
+          minLength={8}
+          name="phone"
+          onChange={onChange}
+          required
+          type="tel"
+          value={values.phone}
         />
       </div>
       <div className="space-y-2">

@@ -9,13 +9,11 @@ import { saveSession } from './session';
 interface LoginValues {
   email: string;
   password: string;
-  tenantSlug: string;
 }
 
 const emptyValues: LoginValues = {
   email: '',
   password: '',
-  tenantSlug: '',
 };
 
 export function LoginPage() {
@@ -35,12 +33,9 @@ export function LoginPage() {
       setPending(true);
       setError(null);
 
-      const tenantSlug = values.tenantSlug.trim();
-
       void loginRequest({
         email: values.email.trim(),
         password: values.password,
-        tenantSlug: tenantSlug || undefined,
       })
         .then((session) => {
           saveSession(session);
@@ -63,10 +58,10 @@ export function LoginPage() {
 
   return (
     <AuthScreen
-      description="Entre com a conta da empresa para acessar o painel."
+      description="Entre com e-mail e senha."
       error={error}
       alternateLabel="Criar conta"
-      alternatePrompt="Ainda não tem empresa?"
+      alternatePrompt="Ainda não tem conta?"
       alternateTo="/register"
       onSubmit={onSubmit}
       pending={pending}
@@ -96,17 +91,6 @@ export function LoginPage() {
           required
           type="password"
           value={values.password}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="tenantSlug">Empresa</Label>
-        <Input
-          autoComplete="organization"
-          id="tenantSlug"
-          name="tenantSlug"
-          onChange={onChange}
-          placeholder="Obrigatório se a conta tiver mais de uma empresa"
-          value={values.tenantSlug}
         />
       </div>
     </AuthScreen>

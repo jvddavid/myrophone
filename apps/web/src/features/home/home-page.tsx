@@ -16,7 +16,8 @@ export function HomePage() {
         </p>
         <h1 className="text-4xl font-bold">Painel</h1>
         <p className="text-muted-foreground">
-          Sessão de {auth.user.email} em {auth.tenant.name}.
+          Sessão de {auth.user.email}
+          {auth.tenant ? ` em ${auth.tenant.name}` : ''}.
         </p>
         <p className="text-sm text-muted-foreground">
           {describeApiStatus(health.status)}
@@ -28,7 +29,7 @@ export function HomePage() {
         <dl className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Papel</dt>
-            <dd>{auth.role}</dd>
+            <dd>{auth.role ?? 'Nenhum'}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Permissões</dt>
