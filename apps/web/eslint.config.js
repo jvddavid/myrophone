@@ -55,4 +55,19 @@ export default tseslint.config(
       'react-perf/jsx-no-jsx-as-prop': 'warn',
     },
   },
+  {
+    files: ['src/components/**/*.{ts,tsx}', 'src/hooks/use-mobile.tsx'],
+    rules: {
+      'react/prop-types': 'off',
+      'react/no-unknown-property': ['error', { ignore: ['cmdk-input-wrapper'] }],
+      'react-refresh/only-export-components': 'off',
+      'react/jsx-no-bind': 'off',
+      'react/jsx-no-constructed-context-values': 'off',
+      'react/no-unstable-nested-components': 'off',
+      'react-perf/jsx-no-new-array-as-prop': 'off',
+      'react-perf/jsx-no-new-function-as-prop': 'off',
+      'react-perf/jsx-no-new-object-as-prop': 'off',
+      'react-perf/jsx-no-jsx-as-prop': 'off',
+    },
+  },
 );

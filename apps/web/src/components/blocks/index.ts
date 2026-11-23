@@ -1,0 +1,13 @@
+export { BrandMarquee } from "./brand-marquee";
+export { CreditSimulator } from "./credit-simulator";
+export { HeroOperation } from "./hero-operation";
+export { LostSales } from "./lost-sales";
+export { NetworkOnboarding } from "./network-onboarding";
+export { OperationFlow } from "./operation-flow";
+export { OperationTracks } from "./operation-tracks";
+export { OperationalFaq } from "./operational-faq";
+export { PartnerVoices } from "./partner-voices";
+export { ServiceIndex } from "./service-index";
+export { SiteFooter } from "./site-footer";
+export { SiteHeader } from "./site-header";
+export { WhatsappFloat } from "./whatsapp-float";
