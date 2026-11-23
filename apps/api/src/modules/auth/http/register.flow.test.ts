@@ -65,4 +65,22 @@ describe('POST /auth/register', () => {
     expect(phone.status).toBe(400);
     expect(phone.body.error).toBe('VALIDATION_ERROR');
   });
+
+  it('rejects a name shorter than 2 characters after trim', async () => {
+    const shortEmail = `short-${crypto.randomUUID()}@auth-test.local`;
+    const response = await postAuth('/auth/register', {
+      name: '  a ',
+      phone: '11987654321',
+      email: shortEmail,
+      password,
+    });
+    const prisma = await getPrisma();
+    const stored = (await prisma.user.findMany({
+      where: { email: shortEmail },
+    })) as unknown[];
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('VALIDATION_ERROR');
+    expect(stored).toHaveLength(0);
+  });
 });

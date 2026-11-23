@@ -13,6 +13,7 @@ import {
   type TeamWithPermissions,
   type UserRecord,
 } from './db-types';
+import { isUniqueViolation, normalizeName } from './input-rules';
 import { hashPassword, verifyPassword } from './password';
 import { normalizePhone } from './phone';
 import {
@@ -92,6 +93,14 @@ export interface AuthResponse extends AuthContext {
 
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function emailInUseError(): AppError {
+  return new AppError({
+    statusCode: 409,
+    code: 'EMAIL_IN_USE',
+    message: 'Email is already in use.',
+  });
 }
 
 function normalizeSlug(value: string): string {
@@ -191,7 +200,9 @@ async function listActiveCompanies(
   >(
     await db.membership.findMany({
       where: { userId, status: MEMBERSHIP_ACTIVE },
-      include: { tenant: true },
+      select: {
+        tenant: { select: { id: true, slug: true, name: true } },
+      },
     }),
   );
 
@@ -670,7 +681,7 @@ export async function createFirstCompany(
     });
   }
 
-  const name = input.name.trim();
+  const name = normalizeName(input.name, 'Company name');
 
   const result = await prisma.$transaction(async (transaction) => {
     const activeCount = asType<number>(
@@ -934,6 +945,7 @@ export async function registerAccount(
     });
   }
 
+  const name = normalizeName(input.name, 'Name');
   const phone = normalizePhone(input.phone);
   const prisma = await getPrisma();
   const normalizedEmail = normalizeEmail(input.email);
@@ -946,25 +958,31 @@ export async function registerAccount(
   );
 
   if (existingUser) {
-    throw new AppError({
-      statusCode: 409,
-      code: 'EMAIL_IN_USE',
-      message: 'Email is already in use.',
-    });
+    throw emailInUseError();
   }
 
-  const user = asType<UserRecord>(
-    await prisma.user.create({
-      data: {
-        name: input.name.trim(),
-        phone,
-        email: normalizedEmail,
-        passwordHash: await hashPassword(input.password),
-        avatarUrl: null,
-        emailVerifiedAt: null,
-      },
-    }),
-  );
+  let user: UserRecord;
+
+  try {
+    user = asType<UserRecord>(
+      await prisma.user.create({
+        data: {
+          name,
+          phone,
+          email: normalizedEmail,
+          passwordHash: await hashPassword(input.password),
+          avatarUrl: null,
+          emailVerifiedAt: null,
+        },
+      }),
+    );
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw emailInUseError();
+    }
+
+    throw error;
+  }
 
   const opened = await createAccountSessionTokens(prisma, user, requestMeta);
 
@@ -1285,11 +1303,10 @@ export async function resolveAuthContextFromRequest(
     return toAccountContext(user, session.id, companies);
   }
 
-  const membership = await findActiveMembership(
-    prisma,
-    payload.sub,
-    payload.tenantId,
-  );
+  const [membership, companies] = await Promise.all([
+    findActiveMembership(prisma, payload.sub, payload.tenantId),
+    listActiveCompanies(prisma, payload.sub),
+  ]);
 
   if (!membership || membership.status !== MEMBERSHIP_ACTIVE) {
     return null;
@@ -1299,7 +1316,6 @@ export async function resolveAuthContextFromRequest(
     return null;
   }
 
-  const companies = await listActiveCompanies(prisma, membership.userId);
   return toAuthContext(membership, session.id, companies);
 }
 
