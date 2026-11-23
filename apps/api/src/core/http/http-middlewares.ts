@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/elysia';
 import { Elysia } from 'elysia';
 import { env } from '../config/env';
 import { AppError } from '../errors/app-error';
@@ -311,6 +312,7 @@ export const httpMiddlewares = new Elysia({
       },
       'Unexpected API error',
     );
+    Sentry.captureException(error);
 
     set.status = 500;
     return {

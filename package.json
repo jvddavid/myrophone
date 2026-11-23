@@ -2,7 +2,7 @@
   "name": "myrophone",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "bun@1.4.4",
+  "packageManager": "bun@1.4.5",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -20,6 +20,6 @@
   },
   "devDependencies": {
     "react-doctor": "^0.9.23",
-    "wrangler": "^4.158.0"
+    "wrangler": "^4.166.0"
   }
 }

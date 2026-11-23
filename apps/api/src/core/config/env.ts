@@ -65,4 +65,5 @@ export const env = {
     nodeEnv !== 'test',
   ),
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'info',
+  SENTRY_DSN: process.env.SENTRY_DSN,
 };

@@ -4,11 +4,10 @@ import {
   type TenantHierarchyExportResult,
 } from '@myrophone/shared';
 import { Queue } from 'bullmq';
-import type { RedisOptions } from 'ioredis';
 import { env } from '../core/config/env';
 import type { LeadJob } from '../modules/lead-processing/processor';
 
-export const connection: RedisOptions = {
+export const connection = {
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
   maxRetriesPerRequest: null,

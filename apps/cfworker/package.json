@@ -12,9 +12,9 @@
     "format": "biome format --write ."
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.6",
-    "@cloudflare/workers-types": "^5.20261107.1",
+    "@biomejs/biome": "^2.6.8",
+    "@cloudflare/workers-types": "^5.20261123.1",
     "typescript": "^6.0.3",
-    "wrangler": "^4.158.0"
+    "wrangler": "^4.166.0"
   }
 }
