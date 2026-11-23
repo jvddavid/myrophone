@@ -14,6 +14,12 @@
     "dev:workflows": "bun run --cwd apps/workflows dev",
     "dev:cfworker": "bun run --cwd apps/cfworker dev",
     "test": "bun run --cwd apps/api test && bun run --cwd apps/worker test",
-    "lint": "bun run --cwd apps/api lint && bun run --cwd apps/web lint && bun run --cwd apps/worker lint && bun run --cwd apps/workflows lint && bun run --cwd apps/cfworker lint && bun run --cwd packages/shared lint"
+    "lint": "bun run --cwd apps/api lint && bun run --cwd apps/web lint && bun run --cwd apps/worker lint && bun run --cwd apps/workflows lint && bun run --cwd apps/cfworker lint && bun run --cwd packages/shared lint",
+    "wrangler": "wrangler",
+    "doctor": "npx react-doctor@latest"
+  },
+  "devDependencies": {
+    "react-doctor": "^0.9.23",
+    "wrangler": "^4.158.0"
   }
 }

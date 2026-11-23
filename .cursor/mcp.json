@@ -1,0 +1,52 @@
+{
+  "mcpServers": {
+    "cloudflare-api": {
+      "url": "https://mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-docs": {
+      "url": "https://docs.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-agents": {
+      "url": "https://agents.cloudflare.com/mcp"
+    },
+    "cloudflare-browser": {
+      "url": "https://browser.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-containers": {
+      "url": "https://containers.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-blog": {
+      "url": "https://blog.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-casb": {
+      "url": "https://casb.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare-dex": {
+      "url": "https://dex.mcp.cloudflare.com/mcp"
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx.cmd",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "postgres": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["postgres-mcp", "--access-mode=unrestricted"],
+      "env": {
+        "DATABASE_URI": "postgresql://postgres:postgres@127.0.0.1:5432/myrophone"
+      }
+    },
+    "redis": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "redis-mcp-server@latest",
+        "redis-mcp-server",
+        "--url",
+        "redis://127.0.0.1:6379/0"
+      ]
+    }
+  }
+}
