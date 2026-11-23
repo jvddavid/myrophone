@@ -12,12 +12,17 @@ describe('normalizePhone', () => {
   });
 
   it('rejects a phone with letters', () => {
+    expect(() => normalizePhone('telefone!!')).toThrow(AppError);
+
+    let error: unknown;
     try {
       normalizePhone('telefone!!');
-    } catch (error) {
-      expect(error).toBeInstanceOf(AppError);
-      expect((error as AppError).code).toBe('VALIDATION_ERROR');
-      expect((error as AppError).statusCode).toBe(400);
+    } catch (caught) {
+      error = caught;
     }
+
+    expect(error).toBeInstanceOf(AppError);
+    expect((error as AppError).code).toBe('VALIDATION_ERROR');
+    expect((error as AppError).statusCode).toBe(400);
   });
 });
