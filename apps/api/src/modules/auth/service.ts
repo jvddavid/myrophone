@@ -13,7 +13,12 @@ import {
   type TeamWithPermissions,
   type UserRecord,
 } from './db-types';
-import { isUniqueViolation, normalizeName } from './input-rules';
+import {
+  isUniqueViolation,
+  normalizeDescription,
+  normalizeLogoUrl,
+  normalizeName,
+} from './input-rules';
 import { hashPassword, verifyPassword } from './password';
 import { normalizePhone } from './phone';
 import {
@@ -66,16 +71,8 @@ export interface AuthContext {
     emailVerifiedAt: string | null;
     isActive: boolean;
   };
-  tenant: {
-    id: string;
-    slug: string;
-    name: string;
-  } | null;
-  companies: Array<{
-    id: string;
-    slug: string;
-    name: string;
-  }>;
+  tenant: CompanySummary | null;
+  companies: CompanySummary[];
   role: string | null;
   permissions: string[];
   teams: TeamContextItem[];
@@ -173,10 +170,22 @@ function collectTeamPermissions(teams: TeamContextItem[]): string[] {
   );
 }
 
-interface CompanySummary {
+export interface CompanySummary {
   id: string;
   slug: string;
   name: string;
+  description: string | null;
+  logoUrl: string | null;
+}
+
+function toCompany(tenant: CompanySummary): CompanySummary {
+  return {
+    id: tenant.id,
+    slug: tenant.slug,
+    name: tenant.name,
+    description: tenant.description,
+    logoUrl: tenant.logoUrl,
+  };
 }
 
 function toPublicUser(user: UserRecord) {
@@ -195,19 +204,25 @@ async function listActiveCompanies(
   db: PrismaDb,
   userId: string,
 ): Promise<CompanySummary[]> {
-  const memberships = asType<
-    Array<{ tenant: { id: string; slug: string; name: string } }>
-  >(
+  const memberships = asType<Array<{ tenant: CompanySummary }>>(
     await db.membership.findMany({
       where: { userId, status: MEMBERSHIP_ACTIVE },
       select: {
-        tenant: { select: { id: true, slug: true, name: true } },
+        tenant: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            description: true,
+            logoUrl: true,
+          },
+        },
       },
     }),
   );
 
   return memberships
-    .map((membership) => membership.tenant)
+    .map((membership) => toCompany(membership.tenant))
     .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
 }
 
@@ -240,11 +255,7 @@ function toAuthContext(
     sessionId,
     membershipId: membership.id,
     user: toPublicUser(membership.user),
-    tenant: {
-      id: membership.tenant.id,
-      slug: membership.tenant.slug,
-      name: membership.tenant.name,
-    },
+    tenant: toCompany(membership.tenant),
     companies,
     role: membership.role.name,
     permissions: toUniqueSortedPermissions(membership),
@@ -647,6 +658,8 @@ export async function createFirstCompany(
     userId: string;
     sessionId: string;
     name: string;
+    description: string;
+    logoUrl?: string | null;
     refreshToken: string;
   },
   requestMeta: RequestMeta,
@@ -682,6 +695,8 @@ export async function createFirstCompany(
   }
 
   const name = normalizeName(input.name, 'Company name');
+  const description = normalizeDescription(input.description);
+  const logoUrl = normalizeLogoUrl(input.logoUrl);
 
   const result = await prisma.$transaction(async (transaction) => {
     const activeCount = asType<number>(
@@ -717,7 +732,7 @@ export async function createFirstCompany(
 
     const tenant = asType<{ id: string }>(
       await transaction.tenant.create({
-        data: { name, slug },
+        data: { name, slug, description, logoUrl },
       }),
     );
 
@@ -1337,7 +1352,7 @@ export async function requireAuthContext(
 
 export function requireTenantContext(auth: AuthContext): AuthContext & {
   membershipId: string;
-  tenant: { id: string; slug: string; name: string };
+  tenant: CompanySummary;
   role: string;
 } {
   if (!auth.tenant || !auth.membershipId || !auth.role) {
@@ -1350,7 +1365,7 @@ export function requireTenantContext(auth: AuthContext): AuthContext & {
 
   return auth as AuthContext & {
     membershipId: string;
-    tenant: { id: string; slug: string; name: string };
+    tenant: CompanySummary;
     role: string;
   };
 }

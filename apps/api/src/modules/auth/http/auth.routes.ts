@@ -30,6 +30,8 @@ const refreshBodySchema = t.Object({
 
 const createCompanyBodySchema = t.Object({
   name: t.String({ minLength: 2 }),
+  description: t.String({ minLength: 2, maxLength: 280 }),
+  logoUrl: t.Optional(t.String({ maxLength: 2048 })),
   refreshToken: t.String({ minLength: 10 }),
 });
 
@@ -95,6 +97,8 @@ export const authRoutes = new Elysia()
             userId: auth.user.id,
             sessionId: auth.sessionId,
             name: body.name,
+            description: body.description,
+            logoUrl: body.logoUrl,
             refreshToken: body.refreshToken,
           },
           getRequestMeta(request),

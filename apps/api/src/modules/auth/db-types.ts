@@ -4,6 +4,8 @@ export interface TenantRecord {
   id: string;
   slug: string;
   name: string;
+  description: string | null;
+  logoUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

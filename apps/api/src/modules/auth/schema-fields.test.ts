@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const schema = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), '../../../prisma/schema.prisma'),
+  resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../prisma/schema.prisma',
+  ),
   'utf8',
 );
 
@@ -25,6 +28,14 @@ describe('account schema', () => {
     expect(user).toMatch(/emailVerifiedAt\s+DateTime\?/);
     expect(user).toMatch(/lastTenantId\s+String\?/);
     expect(user).toContain('@relation("UserLastTenant"');
+  });
+
+  it('stores the company name, description and logo', () => {
+    const tenant = block('Tenant', 'User');
+
+    expect(tenant).toMatch(/name\s+String\n/);
+    expect(tenant).toMatch(/description\s+String\?/);
+    expect(tenant).toMatch(/logoUrl\s+String\?/);
   });
 
   it('allows a session without a company', () => {

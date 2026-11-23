@@ -1,8 +1,24 @@
 import { getRouteApi, useRouter } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useState, type FormEvent } from 'react';
+import { useCallback, useState } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item';
 import { AuthRequestError, createCompanyRequest } from '../auth/api';
+import { CompanyMark } from '../auth/company-mark';
 import { CreateCompanyForm } from '../auth/company-panel';
+import type { CompanyDraft } from '../auth/company-profile';
 import { showCreateCompany } from '../auth/show-create-company';
 import { saveSession } from '../auth/session';
 import { readTokens } from '../auth/token-store';
@@ -27,12 +43,7 @@ function CreateCompanyPage() {
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-
-      const name = String(
-        new FormData(event.currentTarget).get('companyName') ?? '',
-      ).trim();
+    (draft: CompanyDraft) => {
       const refreshToken = readTokens()?.refreshToken;
 
       if (!refreshToken) {
@@ -42,7 +53,12 @@ function CreateCompanyPage() {
 
       setPending(true);
       setError(null);
-      void createCompanyRequest({ name, refreshToken })
+      void createCompanyRequest({
+        name: draft.name,
+        description: draft.description,
+        logoUrl: draft.logoUrl || undefined,
+        refreshToken,
+      })
         .then((session) => {
           saveSession(session);
           queryClient.clear();
@@ -62,47 +78,63 @@ function CreateCompanyPage() {
     [router],
   );
 
-  return <CreateCompanyForm error={error} onSubmit={onSubmit} pending={pending} />;
+  return (
+    <CreateCompanyForm error={error} onSubmit={onSubmit} pending={pending} />
+  );
 }
 
 function CompanyPanel() {
   const { auth } = authenticatedRoute.useRouteContext();
   const health = useQuery(healthQueryOptions());
+  const tenant = auth.tenant;
+
+  if (!tenant) {
+    return null;
+  }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-12">
-      <header className="space-y-2">
-        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-          MyroPhone
-        </p>
-        <h1 className="text-4xl font-bold">Painel</h1>
-        <p className="text-muted-foreground">
-          Sessão de {auth.user.email}
-          {auth.tenant ? ` em ${auth.tenant.name}` : ''}.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {describeApiStatus(health.status)}
-        </p>
-      </header>
+    <div className="flex flex-col gap-4">
+      <Item variant="outline">
+        <ItemMedia>
+          <CompanyMark logoUrl={tenant.logoUrl} name={tenant.name} />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>{tenant.name}</ItemTitle>
+          <ItemDescription>
+            {tenant.description ?? 'Sem descrição'}
+          </ItemDescription>
+        </ItemContent>
+      </Item>
 
-      <section className="rounded-xl border bg-card p-6 text-card-foreground">
-        <h2 className="text-lg font-semibold">Acesso</h2>
-        <dl className="mt-4 space-y-2 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Papel</dt>
-            <dd>{auth.role ?? 'Nenhum'}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Permissões</dt>
-            <dd>{auth.permissions.join(', ') || 'Nenhuma'}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Times</dt>
-            <dd>{auth.teams.map((team) => team.name).join(', ') || 'Nenhum'}</dd>
-          </div>
-        </dl>
-      </section>
-    </main>
+      <Card>
+        <CardHeader>
+          <CardTitle>Acesso</CardTitle>
+          <CardDescription>
+            Sessão de {auth.user.email}. {describeApiStatus(health.status)}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid gap-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Papel</dt>
+              <dd>{auth.role ?? 'Nenhum'}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Permissões</dt>
+              <dd className="text-right">
+                {auth.permissions.join(', ') || 'Nenhuma'}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Times</dt>
+              <dd>
+                {auth.teams.map((team) => team.name).join(', ') || 'Nenhum'}
+              </dd>
+            </div>
+          </dl>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

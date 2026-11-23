@@ -1,23 +1,21 @@
-import { getRouteApi, Outlet, useNavigate, useRouter } from '@tanstack/react-router';
+import { getRouteApi, Link, Outlet, useNavigate, useRouter } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import { Separator } from '@/components/ui/separator';
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { queryClient } from '../../query-client';
+import { AppSidebar } from './app-sidebar';
 import { switchCompanyRequest, AuthRequestError } from './api';
 import { logoutSession, saveSession } from './session';
 import { readTokens } from './token-store';
@@ -72,40 +70,50 @@ export function AuthenticatedLayout() {
 
   return (
     <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="gap-3 p-4">
-          <p className="text-sm font-medium">MyroPhone</p>
-          <Select
-            disabled={auth.companies.length === 0}
-            onValueChange={onSwitch}
-            value={auth.tenant?.id}
-          >
-            <SelectTrigger aria-label="Empresa">
-              <SelectValue placeholder="Nenhuma empresa" />
-            </SelectTrigger>
-            <SelectContent>
-              {auth.companies.map((company) => (
-                <SelectItem key={company.id} value={company.id}>
-                  {company.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {error ? <p className="text-xs text-destructive">{error}</p> : null}
-        </SidebarHeader>
-        <SidebarContent />
-        <SidebarFooter className="p-4">
-          <p className="text-sm">{displayName}</p>
-          <Button onClick={logout} type="button" variant="outline">
-            Sair
-          </Button>
-        </SidebarFooter>
-      </Sidebar>
+      <AppSidebar
+        activeCompanyId={auth.tenant?.id ?? null}
+        companies={auth.companies}
+        onLogout={logout}
+        onSwitch={onSwitch}
+        user={{
+          name: displayName,
+          email: auth.user.email,
+          avatar: auth.user.avatarUrl,
+        }}
+      />
       <SidebarInset>
-        <header className="flex items-center p-2 md:hidden">
-          <SidebarTrigger />
+        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+          <div className="flex items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator
+              className="mr-2 data-[orientation=vertical]:h-4"
+              orientation="vertical"
+            />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem className="hidden md:block">
+                  <BreadcrumbLink asChild>
+                    <Link to="/">MyroPhone</Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>
+                    {auth.tenant?.name ?? 'Painel'}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
         </header>
-        <Outlet />
+        {error ? (
+          <p className="px-4 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <Outlet />
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

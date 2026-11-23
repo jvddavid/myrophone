@@ -23,7 +23,12 @@ describe('POST /auth/companies', () => {
 
     const created = await postAuth(
       '/auth/companies',
-      { name: 'Auth Test Acme', refreshToken: tokens.refreshToken },
+      {
+        name: 'Auth Test Acme',
+        description: 'Assistência e venda de celulares.',
+        logoUrl: 'https://cdn.example/acme.png',
+        refreshToken: tokens.refreshToken,
+      },
       tokens.accessToken,
     );
     const nextTokens = created.body.tokens as {
@@ -33,12 +38,18 @@ describe('POST /auth/companies', () => {
     const profile = await getAuth('/auth/me', nextTokens.accessToken);
     const again = await postAuth(
       '/auth/companies',
-      { name: 'Auth Test Other', refreshToken: nextTokens.refreshToken },
+      {
+        name: 'Auth Test Other',
+        description: 'Segunda empresa, que não deve ser criada.',
+        refreshToken: nextTokens.refreshToken,
+      },
       nextTokens.accessToken,
     );
     const prisma = await getPrisma();
     const sessions = asType<Array<{ id: string }>>(
-      await prisma.session.findMany({ where: { user: { email }, revokedAt: null } }),
+      await prisma.session.findMany({
+        where: { user: { email }, revokedAt: null },
+      }),
     );
 
     expect(created.status).toBe(200);
@@ -46,8 +57,23 @@ describe('POST /auth/companies', () => {
     expect(nextTokens.refreshToken).toBe(tokens.refreshToken);
     expect(nextTokens.accessToken).not.toBe(tokens.accessToken);
     expect(created.body.role).toBe('OWNER');
-    expect(created.body.tenant).toMatchObject({ name: 'Auth Test Acme' });
-    expect(profile.body.tenant).toMatchObject({ name: 'Auth Test Acme' });
+    expect(created.body.tenant).toMatchObject({
+      name: 'Auth Test Acme',
+      description: 'Assistência e venda de celulares.',
+      logoUrl: 'https://cdn.example/acme.png',
+    });
+    expect(created.body.companies).toEqual([
+      expect.objectContaining({
+        name: 'Auth Test Acme',
+        description: 'Assistência e venda de celulares.',
+        logoUrl: 'https://cdn.example/acme.png',
+      }),
+    ]);
+    expect(profile.body.tenant).toMatchObject({
+      name: 'Auth Test Acme',
+      description: 'Assistência e venda de celulares.',
+      logoUrl: 'https://cdn.example/acme.png',
+    });
     expect(again.status).toBe(403);
     expect(again.body.error).toBe('COMPANY_CREATE_UNAVAILABLE');
     expect(sessions).toHaveLength(1);

@@ -1,3 +1,5 @@
+import type { CompanyIdentity } from './company-profile';
+
 export interface AuthProfile {
   sessionId: string;
   membershipId: string | null;
@@ -10,12 +12,8 @@ export interface AuthProfile {
     emailVerifiedAt: string | Date | null;
     isActive: boolean;
   };
-  tenant: {
-    id: string;
-    slug: string;
-    name: string;
-  } | null;
-  companies: Array<{ id: string; slug: string; name: string }>;
+  tenant: CompanyIdentity | null;
+  companies: CompanyIdentity[];
   role: string | null;
   permissions: string[];
   teams: Array<{

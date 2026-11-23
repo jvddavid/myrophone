@@ -22,7 +22,11 @@ describe('POST /auth/tenant', () => {
     };
     const first = await postAuth(
       '/auth/companies',
-      { name: 'Auth Test One', refreshToken: tokens.refreshToken },
+      {
+        name: 'Auth Test One',
+        description: 'Primeira empresa de teste.',
+        refreshToken: tokens.refreshToken,
+      },
       tokens.accessToken,
     );
     const current = first.body.tokens as {

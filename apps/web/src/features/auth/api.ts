@@ -1,4 +1,5 @@
 import { getApi } from '../../api/client';
+import type { CompanyIdentity } from './company-profile';
 import { authErrorMessage, type AuthProfile, type AuthSession } from './types';
 
 export class AuthRequestError extends Error {
@@ -15,14 +16,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function isCompany(
-  value: unknown,
-): value is { id: string; slug: string; name: string } {
+function isCompany(value: unknown): value is CompanyIdentity {
   return (
     isRecord(value) &&
     typeof value.id === 'string' &&
     typeof value.slug === 'string' &&
-    typeof value.name === 'string'
+    typeof value.name === 'string' &&
+    isNullableString(value.description) &&
+    isNullableString(value.logoUrl)
   );
 }
 
@@ -198,6 +199,8 @@ export async function profileRequest(): Promise<
 
 export async function createCompanyRequest(input: {
   name: string;
+  description: string;
+  logoUrl?: string;
   refreshToken: string;
 }): Promise<AuthSession> {
   const { data, error } = await getApi().auth.companies.post(input);

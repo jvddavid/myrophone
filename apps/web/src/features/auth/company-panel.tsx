@@ -1,7 +1,21 @@
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { companyDraft, type CompanyDraft } from './company-profile';
 
 export function CreateCompanyForm({
   pending,
@@ -10,26 +24,71 @@ export function CreateCompanyForm({
 }: {
   pending: boolean;
   error: string | null;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (draft: CompanyDraft) => void;
 }) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const draft = companyDraft({ name, description, logoUrl });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSubmit(draft);
+  }
+
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-6 px-6 py-12">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold">Criar empresa</h1>
-        <p className="text-muted-foreground">
-          Esta conta ainda não tem uma empresa. Crie a primeira para abrir o painel.
-        </p>
-      </header>
-      <form className="space-y-4" onSubmit={onSubmit}>
-        <div className="space-y-2">
-          <Label htmlFor="companyName">Empresa</Label>
-          <Input id="companyName" minLength={2} name="companyName" required />
-        </div>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button disabled={pending} type="submit">
-          Criar empresa
-        </Button>
-      </form>
-    </main>
+    <Card className="mx-auto w-full max-w-md">
+      <CardHeader>
+        <CardTitle>Criar empresa</CardTitle>
+        <CardDescription>
+          Nome, descrição e logo da primeira empresa desta conta.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit}>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="companyName">Nome</FieldLabel>
+              <Input
+                id="companyName"
+                minLength={2}
+                name="companyName"
+                onChange={(event) => setName(event.target.value)}
+                required
+                value={name}
+              />
+            </Field>
+            <Field data-invalid={Boolean(error)}>
+              <FieldLabel htmlFor="companyDescription">Descrição</FieldLabel>
+              <Textarea
+                id="companyDescription"
+                maxLength={280}
+                minLength={2}
+                name="companyDescription"
+                onChange={(event) => setDescription(event.target.value)}
+                required
+                value={description}
+              />
+              {error ? <FieldError>{error}</FieldError> : null}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="companyLogoUrl">Logo</FieldLabel>
+              <Input
+                id="companyLogoUrl"
+                inputMode="url"
+                name="companyLogoUrl"
+                onChange={(event) => setLogoUrl(event.target.value)}
+                placeholder="https://"
+                type="url"
+                value={logoUrl}
+              />
+            </Field>
+            <Button disabled={pending} type="submit">
+              {pending ? 'Aguarde…' : 'Criar empresa'}
+            </Button>
+          </FieldGroup>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
