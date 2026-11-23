@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tenant": "./src/core/tenant.ts"
+  },
   "main": "src/index.ts",
   "types": "src/index.ts",
   "devDependencies": {

@@ -1,7 +1,7 @@
-import { normalizeTenantId } from '@myrophone/shared';
+import { normalizeTenantId } from '@myrophone/shared/tenant';
 import { type ChangeEvent, useCallback, useMemo, useState } from 'react';
 
-export default function App() {
+export function HomePage() {
   const [tenantInput, setTenantInput] = useState('Loja-Exemplo');
 
   const tenantId = useMemo(
