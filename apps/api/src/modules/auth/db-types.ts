@@ -11,9 +11,13 @@ export interface TenantRecord {
 export interface UserRecord {
   id: string;
   email: string;
-  name: string | null;
+  name: string;
+  phone: string;
+  avatarUrl: string | null;
+  emailVerifiedAt: Date | null;
   passwordHash: string;
   isActive: boolean;
+  lastTenantId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,7 +78,7 @@ export interface TeamMembershipRecord {
 export interface SessionRecord {
   id: string;
   userId: string;
-  tenantId: string;
+  tenantId: string | null;
   refreshTokenHash: string;
   ipAddress: string | null;
   userAgent: string | null;

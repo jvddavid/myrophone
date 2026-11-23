@@ -13,6 +13,7 @@ import {
   type UserRecord,
 } from './db-types';
 import { hashPassword, verifyPassword } from './password';
+import { normalizePhone } from './phone';
 import {
   type AppRoleName,
   defaultRoleName,
@@ -53,19 +54,27 @@ export interface TeamContextItem {
 
 export interface AuthContext {
   sessionId: string;
-  membershipId: string;
+  membershipId: string | null;
   user: {
     id: string;
     email: string;
-    name: string | null;
+    name: string;
+    phone: string;
+    avatarUrl: string | null;
+    emailVerifiedAt: string | null;
     isActive: boolean;
   };
   tenant: {
     id: string;
     slug: string;
     name: string;
-  };
-  role: string;
+  } | null;
+  companies: Array<{
+    id: string;
+    slug: string;
+    name: string;
+  }>;
+  role: string | null;
   permissions: string[];
   teams: TeamContextItem[];
   teamPermissions: string[];
@@ -154,26 +163,77 @@ function collectTeamPermissions(teams: TeamContextItem[]): string[] {
   );
 }
 
+interface CompanySummary {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+function toPublicUser(user: UserRecord) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    avatarUrl: user.avatarUrl,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+    isActive: user.isActive,
+  };
+}
+
+async function listActiveCompanies(
+  db: PrismaDb,
+  userId: string,
+): Promise<CompanySummary[]> {
+  const memberships = asType<
+    Array<{ tenant: { id: string; slug: string; name: string } }>
+  >(
+    await db.membership.findMany({
+      where: { userId, status: MEMBERSHIP_ACTIVE },
+      include: { tenant: true },
+    }),
+  );
+
+  return memberships
+    .map((membership) => membership.tenant)
+    .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+}
+
+function toAccountContext(
+  user: UserRecord,
+  sessionId: string,
+  companies: CompanySummary[],
+): AuthContext {
+  return {
+    sessionId,
+    membershipId: null,
+    user: toPublicUser(user),
+    tenant: null,
+    companies,
+    role: null,
+    permissions: [],
+    teams: [],
+    teamPermissions: [],
+  };
+}
+
 function toAuthContext(
   membership: MembershipWithRelations,
   sessionId: string,
+  companies: CompanySummary[],
 ): AuthContext {
   const teams = toUniqueSortedTeams(membership);
 
   return {
     sessionId,
     membershipId: membership.id,
-    user: {
-      id: membership.user.id,
-      email: membership.user.email,
-      name: membership.user.name,
-      isActive: membership.user.isActive,
-    },
+    user: toPublicUser(membership.user),
     tenant: {
       id: membership.tenant.id,
       slug: membership.tenant.slug,
       name: membership.tenant.name,
     },
+    companies,
     role: membership.role.name,
     permissions: toUniqueSortedPermissions(membership),
     teams,
@@ -181,12 +241,12 @@ function toAuthContext(
   };
 }
 
-function toAuthResponse(
-  membership: MembershipWithRelations,
+function attachTokens(
+  context: AuthContext,
   tokenSet: SessionTokenSet,
 ): AuthResponse {
   return {
-    ...toAuthContext(membership, tokenSet.sessionId),
+    ...context,
     tokens: {
       accessToken: tokenSet.accessToken,
       refreshToken: tokenSet.refreshToken,
@@ -194,6 +254,17 @@ function toAuthResponse(
       refreshTokenExpiresAt: tokenSet.refreshTokenExpiresAt,
     },
   };
+}
+
+function toAuthResponse(
+  membership: MembershipWithRelations,
+  tokenSet: SessionTokenSet,
+  companies: CompanySummary[],
+): AuthResponse {
+  return attachTokens(
+    toAuthContext(membership, tokenSet.sessionId, companies),
+    tokenSet,
+  );
 }
 
 async function findActiveMembership(
@@ -419,7 +490,18 @@ async function assignTeamPermissions(
 function ensureCanManageTeamMembers(
   authContext: AuthContext,
   teamId: string,
-): void {
+): asserts authContext is AuthContext & {
+  role: string;
+  tenant: CompanySummary;
+} {
+  if (!authContext.role || !authContext.tenant) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'NO_ACTIVE_TENANT',
+      message: 'An active company is required.',
+    });
+  }
+
   if (isTenantAdminRole(authContext.role)) {
     return;
   }
@@ -472,6 +554,47 @@ async function createSessionTokens(
     refreshToken,
     accessTokenTtl: env.JWT_ACCESS_TTL,
     refreshTokenExpiresAt: refreshExpiresAt.toISOString(),
+  };
+}
+
+async function createAccountSessionTokens(
+  db: PrismaDb,
+  user: UserRecord,
+  requestMeta: RequestMeta,
+): Promise<{ session: SessionRecord; tokens: SessionTokenSet }> {
+  const refreshToken = generateRefreshToken();
+  const refreshTokenHash = await hashOpaqueToken(refreshToken);
+  const refreshExpiresAt = computeRefreshExpiryDate();
+
+  const session = asType<SessionRecord>(
+    await db.session.create({
+      data: {
+        userId: user.id,
+        tenantId: null,
+        refreshTokenHash,
+        expiresAt: refreshExpiresAt,
+        ipAddress: requestMeta.ipAddress,
+        userAgent: requestMeta.userAgent,
+      },
+    }),
+  );
+
+  const accessToken = await signAccessToken({
+    userId: user.id,
+    sessionId: session.id,
+    tenantId: null,
+    email: user.email,
+  });
+
+  return {
+    session,
+    tokens: {
+      sessionId: session.id,
+      accessToken,
+      refreshToken,
+      accessTokenTtl: env.JWT_ACCESS_TTL,
+      refreshTokenExpiresAt: refreshExpiresAt.toISOString(),
+    },
   };
 }
 
@@ -652,7 +775,79 @@ export async function registerTenantOwner(
   }
 
   const tokenSet = await createSessionTokens(prisma, membership, requestMeta);
-  return toAuthResponse(membership, tokenSet);
+  const companies = await listActiveCompanies(prisma, membership.userId);
+  return toAuthResponse(membership, tokenSet, companies);
+}
+
+export async function registerAccount(
+  input: {
+    name: string;
+    phone: string;
+    email: string;
+    password: string;
+  },
+  requestMeta: RequestMeta,
+): Promise<AuthResponse> {
+  if (input.password.length < 8) {
+    throw new AppError({
+      statusCode: 400,
+      code: 'INVALID_PASSWORD',
+      message: 'Password must have at least 8 characters.',
+    });
+  }
+
+  const phone = normalizePhone(input.phone);
+  const prisma = await getPrisma();
+  const normalizedEmail = normalizeEmail(input.email);
+
+  const existingUser = asType<{ id: string } | null>(
+    await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    }),
+  );
+
+  if (existingUser) {
+    throw new AppError({
+      statusCode: 409,
+      code: 'EMAIL_IN_USE',
+      message: 'Email is already in use.',
+    });
+  }
+
+  const user = asType<UserRecord>(
+    await prisma.user.create({
+      data: {
+        name: input.name.trim(),
+        phone,
+        email: normalizedEmail,
+        passwordHash: await hashPassword(input.password),
+        avatarUrl: null,
+        emailVerifiedAt: null,
+      },
+    }),
+  );
+
+  const opened = await createAccountSessionTokens(prisma, user, requestMeta);
+
+  await createActionLog(prisma, {
+    tenantId: opened.session.tenantId ?? undefined,
+    actorUserId: user.id,
+    action: 'auth.register',
+    entityType: 'user',
+    entityId: user.id,
+    metadata: {
+      email: user.email,
+    },
+    requestMeta,
+  });
+
+  const companies = await listActiveCompanies(prisma, user.id);
+
+  return attachTokens(
+    toAccountContext(user, opened.tokens.sessionId, companies),
+    opened.tokens,
+  );
 }
 
 export async function loginWithPassword(
@@ -757,6 +952,7 @@ export async function loginWithPassword(
   }
 
   const tokenSet = await createSessionTokens(prisma, membership, requestMeta);
+  const companies = await listActiveCompanies(prisma, membership.userId);
 
   await createActionLog(prisma, {
     tenantId: membership.tenantId,
@@ -767,7 +963,7 @@ export async function loginWithPassword(
     requestMeta,
   });
 
-  return toAuthResponse(membership, tokenSet);
+  return toAuthResponse(membership, tokenSet, companies);
 }
 
 export async function refreshAuthSession(
@@ -810,6 +1006,41 @@ export async function refreshAuthSession(
     });
   }
 
+  if (currentSession.tenantId === null) {
+    const user = asType<UserRecord | null>(
+      await prisma.user.findUnique({
+        where: {
+          id: currentSession.userId,
+        },
+      }),
+    );
+
+    if (!user || !user.isActive) {
+      throw new AppError({
+        statusCode: 403,
+        code: 'USER_DISABLED',
+        message: 'User is disabled.',
+      });
+    }
+
+    await prisma.session.update({
+      where: {
+        id: currentSession.id,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+    const opened = await createAccountSessionTokens(prisma, user, requestMeta);
+    const companies = await listActiveCompanies(prisma, user.id);
+
+    return attachTokens(
+      toAccountContext(user, opened.tokens.sessionId, companies),
+      opened.tokens,
+    );
+  }
+
   const membership = await findActiveMembership(
     prisma,
     currentSession.userId,
@@ -834,6 +1065,7 @@ export async function refreshAuthSession(
   });
 
   const tokenSet = await createSessionTokens(prisma, membership, requestMeta);
+  const companies = await listActiveCompanies(prisma, membership.userId);
 
   await createActionLog(prisma, {
     tenantId: membership.tenantId,
@@ -844,7 +1076,7 @@ export async function refreshAuthSession(
     requestMeta,
   });
 
-  return toAuthResponse(membership, tokenSet);
+  return toAuthResponse(membership, tokenSet, companies);
 }
 
 export async function logoutByRefreshToken(
@@ -877,7 +1109,7 @@ export async function logoutByRefreshToken(
     });
 
     await createActionLog(prisma, {
-      tenantId: session.tenantId,
+      tenantId: session.tenantId ?? undefined,
       actorUserId: session.userId,
       action: 'auth.logout',
       entityType: 'session',
@@ -925,6 +1157,23 @@ export async function resolveAuthContextFromRequest(
     return null;
   }
 
+  if (payload.tenantId === null) {
+    const user = asType<UserRecord | null>(
+      await prisma.user.findUnique({
+        where: {
+          id: payload.sub,
+        },
+      }),
+    );
+
+    if (!user || !user.isActive) {
+      return null;
+    }
+
+    const companies = await listActiveCompanies(prisma, user.id);
+    return toAccountContext(user, session.id, companies);
+  }
+
   const membership = await findActiveMembership(
     prisma,
     payload.sub,
@@ -939,7 +1188,8 @@ export async function resolveAuthContextFromRequest(
     return null;
   }
 
-  return toAuthContext(membership, session.id);
+  const companies = await listActiveCompanies(prisma, membership.userId);
+  return toAuthContext(membership, session.id, companies);
 }
 
 export async function requireAuthContext(

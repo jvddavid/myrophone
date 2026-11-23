@@ -6,26 +6,13 @@ import {
   loginWithPassword,
   logoutByRefreshToken,
   refreshAuthSession,
-  registerTenantOwner,
+  registerAccount,
   requireAuthContext,
 } from '../service';
 
-const teamPermissionKeySchema = t.Union([
-  t.Literal('dashboard.view'),
-  t.Literal('management.view'),
-  t.Literal('deliveries.view'),
-  t.Literal('sales.view'),
-  t.Literal('support.view'),
-  t.Literal('reports.view'),
-]);
-
 const registerBodySchema = t.Object({
-  tenantName: t.String({ minLength: 2 }),
-  tenantSlug: t.Optional(t.String({ minLength: 2 })),
-  initialTeamName: t.Optional(t.String({ minLength: 2 })),
-  initialTeamSlug: t.Optional(t.String({ minLength: 2 })),
-  initialTeamPermissionKeys: t.Optional(t.Array(teamPermissionKeySchema)),
   name: t.String({ minLength: 2 }),
+  phone: t.String({ minLength: 8, maxLength: 20 }),
   email: t.String({ format: 'email' }),
   password: t.String({ minLength: 8 }),
 });
@@ -64,7 +51,7 @@ export const authRoutes = new Elysia()
     '/auth/register',
     async ({ body, request, status }) => {
       try {
-        const result = await registerTenantOwner(body, getRequestMeta(request));
+        const result = await registerAccount(body, getRequestMeta(request));
         return status(201, result);
       } catch (error) {
         return toErrorResponse(error, status);
