@@ -195,3 +195,29 @@ export async function profileRequest(): Promise<
 
   return readProfile(data);
 }
+
+export async function createCompanyRequest(input: {
+  name: string;
+  refreshToken: string;
+}): Promise<AuthSession> {
+  const { data, error } = await getApi().auth.companies.post(input);
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readSession(data);
+}
+
+export async function switchCompanyRequest(input: {
+  tenantId: string;
+  refreshToken: string;
+}): Promise<AuthSession> {
+  const { data, error } = await getApi().auth.tenant.post(input);
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readSession(data);
+}

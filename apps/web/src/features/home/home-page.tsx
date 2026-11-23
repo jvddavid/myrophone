@@ -1,10 +1,70 @@
-import { getRouteApi } from '@tanstack/react-router';
+import { getRouteApi, useRouter } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { useCallback, useState, type FormEvent } from 'react';
+import { AuthRequestError, createCompanyRequest } from '../auth/api';
+import { CreateCompanyForm, showCreateCompany } from '../auth/company-panel';
+import { saveSession } from '../auth/session';
+import { readTokens } from '../auth/token-store';
+import { queryClient } from '../../query-client';
 import { healthQueryOptions } from './health-query';
 
 const authenticatedRoute = getRouteApi('/_authenticated');
 
 export function HomePage() {
+  const { auth } = authenticatedRoute.useRouteContext();
+
+  if (showCreateCompany(auth.tenant)) {
+    return <CreateCompanyPage />;
+  }
+
+  return <CompanyPanel />;
+}
+
+function CreateCompanyPage() {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      const name = String(
+        new FormData(event.currentTarget).get('companyName') ?? '',
+      ).trim();
+      const refreshToken = readTokens()?.refreshToken;
+
+      if (!refreshToken) {
+        setError('Sessão expirada. Entre novamente.');
+        return;
+      }
+
+      setPending(true);
+      setError(null);
+      void createCompanyRequest({ name, refreshToken })
+        .then((session) => {
+          saveSession(session);
+          queryClient.clear();
+          return router.invalidate();
+        })
+        .catch((reason: unknown) => {
+          setError(
+            reason instanceof AuthRequestError
+              ? reason.message
+              : 'Não foi possível criar a empresa.',
+          );
+        })
+        .finally(() => {
+          setPending(false);
+        });
+    },
+    [router],
+  );
+
+  return <CreateCompanyForm error={error} onSubmit={onSubmit} pending={pending} />;
+}
+
+function CompanyPanel() {
   const { auth } = authenticatedRoute.useRouteContext();
   const health = useQuery(healthQueryOptions());
 
