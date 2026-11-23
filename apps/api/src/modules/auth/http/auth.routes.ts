@@ -9,6 +9,7 @@ import {
   refreshAuthSession,
   registerAccount,
   requireAuthContext,
+  switchCompany,
 } from '../service';
 
 const registerBodySchema = t.Object({
@@ -29,6 +30,11 @@ const refreshBodySchema = t.Object({
 
 const createCompanyBodySchema = t.Object({
   name: t.String({ minLength: 2 }),
+  refreshToken: t.String({ minLength: 10 }),
+});
+
+const switchCompanyBodySchema = t.Object({
+  tenantId: t.String({ minLength: 1 }),
   refreshToken: t.String({ minLength: 10 }),
 });
 
@@ -99,6 +105,28 @@ export const authRoutes = new Elysia()
     },
     {
       body: createCompanyBodySchema,
+    },
+  )
+  .post(
+    '/auth/tenant',
+    async ({ body, request, status }) => {
+      try {
+        const auth = await requireAuthContext(request);
+        return await switchCompany(
+          {
+            userId: auth.user.id,
+            sessionId: auth.sessionId,
+            tenantId: body.tenantId,
+            refreshToken: body.refreshToken,
+          },
+          getRequestMeta(request),
+        );
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: switchCompanyBodySchema,
     },
   )
   .post(

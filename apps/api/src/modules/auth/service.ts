@@ -825,6 +825,98 @@ export async function createFirstCompany(
   );
 }
 
+export async function switchCompany(
+  input: {
+    userId: string;
+    sessionId: string;
+    tenantId: string;
+    refreshToken: string;
+  },
+  requestMeta: RequestMeta,
+): Promise<AuthResponse> {
+  const prisma = await getPrisma();
+
+  const session = asType<SessionRecord | null>(
+    await prisma.session.findUnique({
+      where: { id: input.sessionId },
+    }),
+  );
+
+  if (!session || session.userId !== input.userId) {
+    throw new AppError({
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+      message: 'Authentication is required.',
+    });
+  }
+
+  await assertCurrentRefreshToken(session, input.refreshToken);
+
+  const membership = await findActiveMembership(
+    prisma,
+    input.userId,
+    input.tenantId,
+  );
+
+  if (!membership || membership.status !== MEMBERSHIP_ACTIVE) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'MEMBERSHIP_NOT_ACTIVE',
+      message: 'Membership is not active for this tenant.',
+    });
+  }
+
+  if (!membership.user.isActive) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'USER_DISABLED',
+      message: 'User is disabled.',
+    });
+  }
+
+  await prisma.session.update({
+    where: { id: session.id },
+    data: { tenantId: membership.tenantId },
+  });
+
+  await prisma.user.update({
+    where: { id: membership.user.id },
+    data: { lastTenantId: membership.tenantId },
+  });
+
+  await createActionLog(prisma, {
+    tenantId: membership.tenantId,
+    actorUserId: membership.user.id,
+    action: 'auth.switch_tenant',
+    entityType: 'session',
+    entityId: session.id,
+    metadata: {
+      email: membership.user.email,
+      previousTenantId: session.tenantId,
+    },
+    requestMeta,
+  });
+
+  const accessToken = await reissueAccessToken(
+    session,
+    membership.user,
+    membership.tenantId,
+  );
+  const companies = await listActiveCompanies(prisma, membership.user.id);
+
+  return toAuthResponse(
+    membership,
+    {
+      sessionId: session.id,
+      accessToken,
+      refreshToken: input.refreshToken,
+      accessTokenTtl: env.JWT_ACCESS_TTL,
+      refreshTokenExpiresAt: session.expiresAt.toISOString(),
+    },
+    companies,
+  );
+}
+
 export async function registerAccount(
   input: {
     name: string;
