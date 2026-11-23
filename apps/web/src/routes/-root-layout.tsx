@@ -9,6 +9,14 @@ const RouterDevtools = import.meta.env.DEV
     )
   : null;
 
+const QueryDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import('@tanstack/react-query-devtools').then((module) => ({
+        default: module.ReactQueryDevtools,
+      })),
+    )
+  : null;
+
 export function RootLayout() {
   return (
     <>
@@ -16,6 +24,11 @@ export function RootLayout() {
       {RouterDevtools ? (
         <Suspense fallback={null}>
           <RouterDevtools />
+        </Suspense>
+      ) : null}
+      {QueryDevtools ? (
+        <Suspense fallback={null}>
+          <QueryDevtools buttonPosition="bottom-right" initialIsOpen={false} />
         </Suspense>
       ) : null}
     </>

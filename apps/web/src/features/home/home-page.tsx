@@ -1,5 +1,7 @@
 import { normalizeTenantId } from '@myrophone/shared/tenant';
+import { useQuery } from '@tanstack/react-query';
 import { type ChangeEvent, useCallback, useMemo, useState } from 'react';
+import { healthQueryOptions } from './health-query';
 
 export function HomePage() {
   const [tenantInput, setTenantInput] = useState('Loja-Exemplo');
@@ -15,6 +17,8 @@ export function HomePage() {
     },
     [],
   );
+  const health = useQuery(healthQueryOptions());
+  const apiStatus = describeApiStatus(health.status);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-12">
@@ -29,6 +33,7 @@ export function HomePage() {
           Base inicial do painel web para gestão de empresas assinantes e
           conexões.
         </p>
+        <p className="text-sm text-slate-400">{apiStatus}</p>
       </header>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
@@ -49,4 +54,16 @@ export function HomePage() {
       </section>
     </main>
   );
+}
+
+function describeApiStatus(status: 'pending' | 'error' | 'success'): string {
+  if (status === 'pending') {
+    return 'Consultando a API…';
+  }
+
+  if (status === 'error') {
+    return 'API indisponível';
+  }
+
+  return 'API no ar';
 }

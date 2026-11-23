@@ -83,7 +83,10 @@ export const jobsRoutes = new Elysia()
           jobId: params.jobId,
         });
 
-        return new Response(file.bytes, {
+        const body = new ArrayBuffer(file.bytes.byteLength);
+        new Uint8Array(body).set(file.bytes);
+
+        return new Response(body, {
           status: 200,
           headers: {
             'content-type': file.mimeType,
