@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { showCreateCompany } from './company-panel';
+import { showCreateCompany } from './show-create-company';
 
 describe('showCreateCompany', () => {
   it('shows the form when the session has no company', () => {
