@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createAccessCompaniesError,
   createAccessFormError,
+  createAccessIdentityError,
   initialCreateAccessSelection,
   selectDepartment,
   toCreateAccessBody,
@@ -87,6 +89,29 @@ describe('selectDepartment', () => {
     expect(
       selectDepartment(selection, active.id, 'team-filial').teamByTenant[active.id],
     ).toBe('team-filial');
+  });
+});
+
+describe('createAccessIdentityError', () => {
+  it('accepts the person before any company is chosen', () => {
+    expect(
+      createAccessIdentityError({
+        name: 'Pessoa',
+        phone: '11987654321',
+        password: 'senha-forte',
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('createAccessCompaniesError', () => {
+  it('requires a company even when the person is valid', () => {
+    expect(
+      createAccessCompaniesError({
+        selection: { tenantIds: [], teamByTenant: {} },
+        companies,
+      }),
+    ).toBe('Escolha ao menos uma empresa.');
   });
 });
 

@@ -16,7 +16,6 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedDepartamentosRouteImport } from './routes/_authenticated/departamentos'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedAcessosIndexRouteImport } from './routes/_authenticated/acessos/index'
-import { Route as AuthenticatedAcessosNovoRouteImport } from './routes/_authenticated/acessos/novo'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
@@ -54,12 +53,6 @@ const AuthenticatedAcessosIndexRoute =
     path: '/acessos/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAcessosNovoRoute =
-  AuthenticatedAcessosNovoRouteImport.update({
-    id: '/acessos/novo',
-    path: '/acessos/novo',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -67,7 +60,6 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/departamentos': typeof AuthenticatedDepartamentosRoute
   '/perfil': typeof AuthenticatedPerfilRoute
-  '/acessos/novo': typeof AuthenticatedAcessosNovoRoute
   '/acessos/': typeof AuthenticatedAcessosIndexRoute
 }
 export interface FileRoutesByTo {
@@ -76,7 +68,6 @@ export interface FileRoutesByTo {
   '/departamentos': typeof AuthenticatedDepartamentosRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/': typeof AuthenticatedIndexRoute
-  '/acessos/novo': typeof AuthenticatedAcessosNovoRoute
   '/acessos': typeof AuthenticatedAcessosIndexRoute
 }
 export interface FileRoutesById {
@@ -87,28 +78,14 @@ export interface FileRoutesById {
   '/_authenticated/departamentos': typeof AuthenticatedDepartamentosRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
-  '/_authenticated/acessos/novo': typeof AuthenticatedAcessosNovoRoute
   '/_authenticated/acessos/': typeof AuthenticatedAcessosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/login'
-    | '/register'
-    | '/departamentos'
-    | '/perfil'
-    | '/acessos/novo'
-    | '/acessos/'
+    '/' | '/login' | '/register' | '/departamentos' | '/perfil' | '/acessos/'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/login'
-    | '/register'
-    | '/departamentos'
-    | '/perfil'
-    | '/'
-    | '/acessos/novo'
-    | '/acessos'
+  to: '/login' | '/register' | '/departamentos' | '/perfil' | '/' | '/acessos'
   id:
     | '__root__'
     | '/_authenticated'
@@ -117,7 +94,6 @@ export interface FileRouteTypes {
     | '/_authenticated/departamentos'
     | '/_authenticated/perfil'
     | '/_authenticated/'
-    | '/_authenticated/acessos/novo'
     | '/_authenticated/acessos/'
   fileRoutesById: FileRoutesById
 }
@@ -178,13 +154,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAcessosIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/acessos/novo': {
-      id: '/_authenticated/acessos/novo'
-      path: '/acessos/novo'
-      fullPath: '/acessos/novo'
-      preLoaderRoute: typeof AuthenticatedAcessosNovoRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
   }
 }
 
@@ -192,7 +161,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDepartamentosRoute: typeof AuthenticatedDepartamentosRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
-  AuthenticatedAcessosNovoRoute: typeof AuthenticatedAcessosNovoRoute
   AuthenticatedAcessosIndexRoute: typeof AuthenticatedAcessosIndexRoute
 }
 
@@ -200,7 +168,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDepartamentosRoute: AuthenticatedDepartamentosRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
-  AuthenticatedAcessosNovoRoute: AuthenticatedAcessosNovoRoute,
   AuthenticatedAcessosIndexRoute: AuthenticatedAcessosIndexRoute,
 }
 

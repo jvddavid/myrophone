@@ -70,12 +70,10 @@ export function selectDepartment(
   };
 }
 
-export function createAccessFormError(input: {
+export function createAccessIdentityError(input: {
   name: string;
   phone: string;
   password: string;
-  selection: CreateAccessSelection;
-  companies: OwnedCompanyOption[];
 }): string | null {
   if (input.name.trim().length < 2) {
     return 'O nome precisa ter pelo menos 2 caracteres.';
@@ -89,6 +87,13 @@ export function createAccessFormError(input: {
     return 'A senha precisa ter pelo menos 8 caracteres.';
   }
 
+  return null;
+}
+
+export function createAccessCompaniesError(input: {
+  selection: CreateAccessSelection;
+  companies: OwnedCompanyOption[];
+}): string | null {
   if (input.selection.tenantIds.length === 0) {
     return 'Escolha ao menos uma empresa.';
   }
@@ -103,6 +108,16 @@ export function createAccessFormError(input: {
   }
 
   return null;
+}
+
+export function createAccessFormError(input: {
+  name: string;
+  phone: string;
+  password: string;
+  selection: CreateAccessSelection;
+  companies: OwnedCompanyOption[];
+}): string | null {
+  return createAccessIdentityError(input) ?? createAccessCompaniesError(input);
 }
 
 export function toCreateAccessBody(input: {

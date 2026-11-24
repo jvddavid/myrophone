@@ -1,6 +1,6 @@
-import { getRouteApi, Link } from '@tanstack/react-router';
+import { getRouteApi } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MailPlus, Trash2, UserPlus } from 'lucide-react';
+import { MailPlus, Trash2 } from 'lucide-react';
 import { type ChangeEvent, type FormEvent, useCallback, useEffect, useState } from 'react';
 import {
   AlertDialog,
@@ -48,6 +48,7 @@ import {
   removeMemberRequest,
   type CompanyMember,
 } from './api';
+import { CreateAccessDialog } from './create-access-dialog';
 import { MemberAvatar } from './member-avatar';
 import { MemberEmpty, MemberPager, MemberSearchField } from './member-list-ui';
 import { invalidateMemberLists } from './member-queries';
@@ -134,12 +135,7 @@ export function AccessPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <InviteDialog />
-            <Button asChild>
-              <Link to="/acessos/novo">
-                <UserPlus />
-                Criar acesso
-              </Link>
-            </Button>
+            <CreateAccessDialog />
           </div>
         </div>
       </CardHeader>
