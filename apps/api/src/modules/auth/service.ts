@@ -1,7 +1,13 @@
-import { normalizeTenantId } from '@myrophone/shared';
+import {
+  defaultDepartmentIconKey,
+  isDepartmentIconKey,
+  type DepartmentIconKey,
+  normalizeTenantId,
+} from '@myrophone/shared';
 import { env } from '../../core/config/env';
 import { getPrisma } from '../../core/db/prisma';
 import { AppError } from '../../core/errors/app-error';
+import { assertTenantOwner } from './company-access';
 import { chooseActiveTenantId, withSlugSuffix } from './company-selection';
 import {
   type ActionLogRecord,
@@ -18,6 +24,7 @@ import {
   normalizeDescription,
   normalizeLogoUrl,
   normalizeName,
+  normalizeOptionalDescription,
 } from './input-rules';
 import { hashPassword, verifyPassword } from './password';
 import { normalizePhone } from './phone';
@@ -73,6 +80,7 @@ export interface AuthContext {
   };
   tenant: CompanySummary | null;
   companies: CompanySummary[];
+  ownsCompany: boolean;
   role: string | null;
   permissions: string[];
   teams: TeamContextItem[];
@@ -178,6 +186,11 @@ export interface CompanySummary {
   logoUrl: string | null;
 }
 
+interface ActiveCompanyList {
+  companies: CompanySummary[];
+  ownsCompany: boolean;
+}
+
 function toCompany(tenant: CompanySummary): CompanySummary {
   return {
     id: tenant.id,
@@ -203,11 +216,14 @@ function toPublicUser(user: UserRecord) {
 async function listActiveCompanies(
   db: PrismaDb,
   userId: string,
-): Promise<CompanySummary[]> {
-  const memberships = asType<Array<{ tenant: CompanySummary }>>(
+): Promise<ActiveCompanyList> {
+  const memberships = asType<
+    Array<{ role: { name: string }; tenant: CompanySummary }>
+  >(
     await db.membership.findMany({
       where: { userId, status: MEMBERSHIP_ACTIVE },
       select: {
+        role: { select: { name: true } },
         tenant: {
           select: {
             id: true,
@@ -220,23 +236,30 @@ async function listActiveCompanies(
       },
     }),
   );
-
-  return memberships
+  const companies = memberships
     .map((membership) => toCompany(membership.tenant))
     .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+
+  return {
+    companies,
+    ownsCompany: memberships.some(
+      (membership) => membership.role.name === 'OWNER',
+    ),
+  };
 }
 
 function toAccountContext(
   user: UserRecord,
   sessionId: string,
-  companies: CompanySummary[],
+  access: ActiveCompanyList,
 ): AuthContext {
   return {
     sessionId,
     membershipId: null,
     user: toPublicUser(user),
     tenant: null,
-    companies,
+    companies: access.companies,
+    ownsCompany: access.ownsCompany,
     role: null,
     permissions: [],
     teams: [],
@@ -247,7 +270,7 @@ function toAccountContext(
 function toAuthContext(
   membership: MembershipWithRelations,
   sessionId: string,
-  companies: CompanySummary[],
+  access: ActiveCompanyList,
 ): AuthContext {
   const teams = toUniqueSortedTeams(membership);
 
@@ -256,7 +279,8 @@ function toAuthContext(
     membershipId: membership.id,
     user: toPublicUser(membership.user),
     tenant: toCompany(membership.tenant),
-    companies,
+    companies: access.companies,
+    ownsCompany: access.ownsCompany,
     role: membership.role.name,
     permissions: toUniqueSortedPermissions(membership),
     teams,
@@ -282,10 +306,10 @@ function attachTokens(
 function toAuthResponse(
   membership: MembershipWithRelations,
   tokenSet: SessionTokenSet,
-  companies: CompanySummary[],
+  access: ActiveCompanyList,
 ): AuthResponse {
   return attachTokens(
-    toAuthContext(membership, tokenSet.sessionId, companies),
+    toAuthContext(membership, tokenSet.sessionId, access),
     tokenSet,
   );
 }
@@ -653,6 +677,108 @@ async function assertCurrentRefreshToken(
   }
 }
 
+async function insertOwnedCompany(
+  transaction: PrismaDb,
+  input: {
+    userId: string;
+    email: string;
+    name: string;
+    description: string | null;
+    logoUrl: string | null;
+    requestMeta: RequestMeta;
+  },
+): Promise<{ tenantId: string }> {
+  const base = normalizeTenantSlug(input.name);
+  let slug = base;
+
+  for (let attempt = 1; attempt <= 50; attempt += 1) {
+    slug = withSlugSuffix(base, attempt);
+    const existing = asType<{ id: string } | null>(
+      await transaction.tenant.findUnique({
+        where: { slug },
+        select: { id: true },
+      }),
+    );
+
+    if (!existing) {
+      break;
+    }
+  }
+
+  const tenant = asType<{ id: string }>(
+    await transaction.tenant.create({
+      data: {
+        name: input.name,
+        slug,
+        description: input.description,
+        logoUrl: input.logoUrl,
+      },
+    }),
+  );
+  const roleIds = await ensureTenantRbac(transaction, tenant.id);
+  const membership = asType<{ id: string }>(
+    await transaction.membership.create({
+      data: {
+        tenantId: tenant.id,
+        userId: input.userId,
+        roleId: roleIds.OWNER,
+        status: MEMBERSHIP_ACTIVE,
+      },
+      select: { id: true },
+    }),
+  );
+  const team = asType<{ id: string }>(
+    await transaction.team.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId: tenant.id,
+          slug: DEFAULT_TEAM_SLUG,
+        },
+      },
+      update: {
+        name: DEFAULT_TEAM_NAME,
+        isActive: true,
+      },
+      create: {
+        tenantId: tenant.id,
+        slug: DEFAULT_TEAM_SLUG,
+        name: DEFAULT_TEAM_NAME,
+        isActive: true,
+      },
+      select: { id: true },
+    }),
+  );
+  const permissionIds = await resolveTeamPermissionIds(transaction, []);
+
+  await assignTeamPermissions(transaction, team.id, permissionIds);
+  await transaction.teamMembership.upsert({
+    where: {
+      teamId_membershipId: {
+        teamId: team.id,
+        membershipId: membership.id,
+      },
+    },
+    update: { role: 'LEADER' },
+    create: {
+      teamId: team.id,
+      membershipId: membership.id,
+      role: 'LEADER',
+    },
+  });
+  await createActionLog(transaction, {
+    tenantId: tenant.id,
+    teamId: team.id,
+    actorUserId: input.userId,
+    action: 'companies.create',
+    entityType: 'tenant',
+    entityId: tenant.id,
+    metadata: { email: input.email },
+    requestMeta: input.requestMeta,
+  });
+
+  return { tenantId: tenant.id };
+}
+
 export async function createFirstCompany(
   input: {
     userId: string;
@@ -713,108 +839,26 @@ export async function createFirstCompany(
       });
     }
 
-    const base = normalizeTenantSlug(name);
-    let slug = base;
-
-    for (let attempt = 1; attempt <= 50; attempt += 1) {
-      slug = withSlugSuffix(base, attempt);
-      const existing = asType<{ id: string } | null>(
-        await transaction.tenant.findUnique({
-          where: { slug },
-          select: { id: true },
-        }),
-      );
-
-      if (!existing) {
-        break;
-      }
-    }
-
-    const tenant = asType<{ id: string }>(
-      await transaction.tenant.create({
-        data: { name, slug, description, logoUrl },
-      }),
-    );
-
-    const roleIds = await ensureTenantRbac(transaction, tenant.id);
-
-    const membership = asType<{ id: string }>(
-      await transaction.membership.create({
-        data: {
-          tenantId: tenant.id,
-          userId: user.id,
-          roleId: roleIds.OWNER,
-          status: MEMBERSHIP_ACTIVE,
-        },
-        select: { id: true },
-      }),
-    );
-
-    const team = asType<{ id: string }>(
-      await transaction.team.upsert({
-        where: {
-          tenantId_slug: {
-            tenantId: tenant.id,
-            slug: DEFAULT_TEAM_SLUG,
-          },
-        },
-        update: {
-          name: DEFAULT_TEAM_NAME,
-          isActive: true,
-        },
-        create: {
-          tenantId: tenant.id,
-          slug: DEFAULT_TEAM_SLUG,
-          name: DEFAULT_TEAM_NAME,
-          isActive: true,
-        },
-        select: { id: true },
-      }),
-    );
-
-    const permissionIds = await resolveTeamPermissionIds(transaction, []);
-
-    await assignTeamPermissions(transaction, team.id, permissionIds);
-
-    await transaction.teamMembership.upsert({
-      where: {
-        teamId_membershipId: {
-          teamId: team.id,
-          membershipId: membership.id,
-        },
-      },
-      update: { role: 'LEADER' },
-      create: {
-        teamId: team.id,
-        membershipId: membership.id,
-        role: 'LEADER',
-      },
+    const created = await insertOwnedCompany(transaction, {
+      userId: user.id,
+      email: user.email,
+      name,
+      description,
+      logoUrl,
+      requestMeta,
     });
 
     await transaction.session.update({
       where: { id: session.id },
-      data: { tenantId: tenant.id },
+      data: { tenantId: created.tenantId },
     });
 
     await transaction.user.update({
       where: { id: user.id },
-      data: { lastTenantId: tenant.id },
+      data: { lastTenantId: created.tenantId },
     });
 
-    await createActionLog(transaction, {
-      tenantId: tenant.id,
-      teamId: team.id,
-      actorUserId: user.id,
-      action: 'companies.create',
-      entityType: 'tenant',
-      entityId: tenant.id,
-      metadata: {
-        email: user.email,
-      },
-      requestMeta,
-    });
-
-    return { tenantId: tenant.id };
+    return created;
   });
 
   const membership = await findActiveMembership(
@@ -849,6 +893,163 @@ export async function createFirstCompany(
     },
     companies,
   );
+}
+
+export async function updateOwnProfile(
+  input: { userId: string; name: string; phone: string; tenantId: string | null },
+  requestMeta: RequestMeta,
+): Promise<void> {
+  const name = normalizeName(input.name, 'Name');
+  const phone = normalizePhone(input.phone);
+  const prisma = await getPrisma();
+
+  await prisma.user.update({
+    where: { id: input.userId },
+    data: { name, phone },
+  });
+  await createActionLog(prisma, {
+    tenantId: input.tenantId ?? undefined,
+    actorUserId: input.userId,
+    action: 'profile.update',
+    entityType: 'user',
+    entityId: input.userId,
+    metadata: { name, phone },
+    requestMeta,
+  });
+}
+
+export async function createOwnedCompany(
+  input: {
+    userId: string;
+    email: string;
+    name: string;
+    description?: string | null;
+  },
+  requestMeta: RequestMeta,
+): Promise<CompanySummary> {
+  const prisma = await getPrisma();
+  const ownedCount = asType<number>(
+    await prisma.membership.count({
+      where: {
+        userId: input.userId,
+        status: MEMBERSHIP_ACTIVE,
+        role: { name: 'OWNER' },
+      },
+    }),
+  );
+
+  if (ownedCount === 0) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'NOT_COMPANY_OWNER',
+      message: 'Only a company owner can create another company.',
+    });
+  }
+
+  const name = normalizeName(input.name, 'Company name');
+  const description = normalizeOptionalDescription(input.description);
+  const created = await prisma.$transaction((transaction) =>
+    insertOwnedCompany(transaction, {
+      userId: input.userId,
+      email: input.email,
+      name,
+      description,
+      logoUrl: null,
+      requestMeta,
+    }),
+  );
+  const tenant = asType<CompanySummary | null>(
+    await prisma.tenant.findUnique({
+      where: { id: created.tenantId },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        description: true,
+        logoUrl: true,
+      },
+    }),
+  );
+
+  if (!tenant) {
+    throw new AppError({
+      statusCode: 500,
+      code: 'TENANT_NOT_FOUND',
+      message: 'Could not load the new company.',
+    });
+  }
+
+  return toCompany(tenant);
+}
+
+export async function updateOwnedCompany(
+  input: {
+    actorUserId: string;
+    tenantId: string;
+    name: string;
+    description?: string | null;
+  },
+  requestMeta: RequestMeta,
+): Promise<CompanySummary> {
+  await assertTenantOwner(input.actorUserId, input.tenantId);
+  const name = normalizeName(input.name, 'Company name');
+  const description = normalizeOptionalDescription(input.description);
+  const prisma = await getPrisma();
+  const tenant = asType<CompanySummary>(
+    await prisma.tenant.update({
+      where: { id: input.tenantId },
+      data: { name, description },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        description: true,
+        logoUrl: true,
+      },
+    }),
+  );
+
+  await createActionLog(prisma, {
+    tenantId: input.tenantId,
+    actorUserId: input.actorUserId,
+    action: 'company.update',
+    entityType: 'tenant',
+    entityId: input.tenantId,
+    metadata: { name },
+    requestMeta,
+  });
+
+  return toCompany(tenant);
+}
+
+export async function readOwnedCompany(
+  actorUserId: string,
+  tenantId: string,
+): Promise<CompanySummary> {
+  await assertTenantOwner(actorUserId, tenantId);
+  const prisma = await getPrisma();
+  const tenant = asType<CompanySummary | null>(
+    await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        description: true,
+        logoUrl: true,
+      },
+    }),
+  );
+
+  if (!tenant) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'NOT_COMPANY_OWNER',
+      message: 'Only the company owner can manage this company.',
+    });
+  }
+
+  return toCompany(tenant);
 }
 
 export async function switchCompany(
@@ -1076,7 +1277,10 @@ export async function loginWithPassword(
     });
 
     return attachTokens(
-      toAccountContext(user, opened.tokens.sessionId, []),
+      toAccountContext(user, opened.tokens.sessionId, {
+        companies: [],
+        ownsCompany: false,
+      }),
       opened.tokens,
     );
   }
@@ -1383,6 +1587,48 @@ export function ensurePermission(
   }
 }
 
+function departmentIconForCreate(icon: string | undefined): DepartmentIconKey {
+  const trimmed = icon?.trim() ?? '';
+
+  if (trimmed.length === 0) {
+    return defaultDepartmentIconKey;
+  }
+
+  if (!isDepartmentIconKey(trimmed)) {
+    throw new AppError({
+      statusCode: 400,
+      code: 'INVALID_DEPARTMENT_ICON',
+      message: 'Department icon is not in the catalog.',
+    });
+  }
+
+  return trimmed;
+}
+
+function departmentIconForUpdate(
+  icon: string | undefined,
+): DepartmentIconKey | undefined {
+  if (icon === undefined) {
+    return undefined;
+  }
+
+  const trimmed = icon.trim();
+
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  if (!isDepartmentIconKey(trimmed)) {
+    throw new AppError({
+      statusCode: 400,
+      code: 'INVALID_DEPARTMENT_ICON',
+      message: 'Department icon is not in the catalog.',
+    });
+  }
+
+  return trimmed;
+}
+
 export async function createTenantTeam(
   input: {
     tenantId: string;
@@ -1390,6 +1636,7 @@ export async function createTenantTeam(
     name: string;
     slug?: string;
     description?: string;
+    icon?: string;
     permissionKeys?: TeamPermissionKey[];
     leaderUserIds?: string[];
   },
@@ -1399,10 +1646,12 @@ export async function createTenantTeam(
   slug: string;
   name: string;
   description: string | null;
+  icon: string;
   permissionKeys: string[];
 }> {
   const prisma = await getPrisma();
   const slug = normalizeTeamSlug(input.slug ?? input.name);
+  const icon = departmentIconForCreate(input.icon);
 
   const result = await prisma.$transaction(async (transaction) => {
     const existing = asType<{ id: string } | null>(
@@ -1432,6 +1681,7 @@ export async function createTenantTeam(
       slug: string;
       name: string;
       description: string | null;
+      icon: string;
     }>(
       await transaction.team.create({
         data: {
@@ -1439,6 +1689,7 @@ export async function createTenantTeam(
           slug,
           name: input.name.trim(),
           description: input.description?.trim(),
+          icon,
           isActive: true,
         },
         select: {
@@ -1446,6 +1697,7 @@ export async function createTenantTeam(
           slug: true,
           name: true,
           description: true,
+          icon: true,
         },
       }),
     );
@@ -1501,6 +1753,7 @@ export async function createTenantTeam(
       entityId: team.id,
       metadata: {
         permissionKeys: input.permissionKeys ?? [],
+        icon,
       },
       requestMeta,
     });
@@ -1536,10 +1789,96 @@ export async function createTenantTeam(
     slug: hydrated.slug,
     name: hydrated.name,
     description: hydrated.description,
+    icon: hydrated.icon,
     permissionKeys: [
       ...new Set(hydrated.permissions.map((item) => item.permission.key)),
     ].sort((a, b) => a.localeCompare(b)),
   };
+}
+
+export async function updateTenantTeam(
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    teamId: string;
+    name: string;
+    description?: string | null;
+    icon?: string;
+  },
+  requestMeta: RequestMeta,
+): Promise<{
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string;
+}> {
+  const prisma = await getPrisma();
+  const name = input.name.trim();
+  const trimmedDescription = input.description?.trim() ?? '';
+  const description = trimmedDescription.length > 0 ? trimmedDescription : null;
+  const icon = departmentIconForUpdate(input.icon);
+
+  return prisma.$transaction(async (transaction) => {
+    const existing = asType<{ id: string } | null>(
+      await transaction.team.findFirst({
+        where: {
+          id: input.teamId,
+          tenantId: input.tenantId,
+          isActive: true,
+        },
+        select: { id: true },
+      }),
+    );
+
+    if (!existing) {
+      throw new AppError({
+        statusCode: 404,
+        code: 'TEAM_NOT_FOUND',
+        message: 'Team not found for this tenant.',
+      });
+    }
+
+    const team = asType<{
+      id: string;
+      slug: string;
+      name: string;
+      description: string | null;
+      icon: string;
+    }>(
+      await transaction.team.update({
+        where: { id: existing.id },
+        data:
+          icon === undefined
+            ? { name, description }
+            : { name, description, icon },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          description: true,
+          icon: true,
+        },
+      }),
+    );
+
+    await createActionLog(transaction, {
+      tenantId: input.tenantId,
+      teamId: team.id,
+      actorUserId: input.actorUserId,
+      action: 'teams.update',
+      entityType: 'team',
+      entityId: team.id,
+      metadata: {
+        name: team.name,
+        description: team.description,
+        icon: team.icon,
+      },
+      requestMeta,
+    });
+
+    return team;
+  });
 }
 
 export async function updateTeamPermissions(
@@ -1776,6 +2115,7 @@ export async function listTenantTeams(tenantId: string): Promise<
     slug: string;
     name: string;
     description: string | null;
+    icon: string;
     isActive: boolean;
     memberCount: number;
     leaderCount: number;
@@ -1820,6 +2160,7 @@ export async function listTenantTeams(tenantId: string): Promise<
     slug: team.slug,
     name: team.name,
     description: team.description,
+    icon: team.icon,
     isActive: team.isActive,
     memberCount: team._count.members,
     leaderCount: team.members.length,

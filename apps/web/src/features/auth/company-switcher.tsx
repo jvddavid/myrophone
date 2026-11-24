@@ -1,5 +1,7 @@
-import { ChevronsUpDown } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronsUpDown, Settings } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,18 +15,22 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { CompanySettingsDialog } from './company-settings-dialog';
 import { companyInitials, type CompanyIdentity } from './company-profile';
 
 export function CompanySwitcher({
   companies,
   activeId,
+  showSettings,
   onSwitch,
 }: {
   companies: CompanyIdentity[];
   activeId: string | null;
+  showSettings: boolean;
   onSwitch: (companyId: string) => void;
 }) {
   const { isMobile } = useSidebar();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const active = companies.find((company) => company.id === activeId) ?? null;
 
   if (!active) {
@@ -44,6 +50,7 @@ export function CompanySwitcher({
   }
 
   return (
+    <>
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
@@ -68,9 +75,23 @@ export function CompanySwitcher({
             side={isMobile ? 'bottom' : 'right'}
             sideOffset={4}
           >
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Empresas
-            </DropdownMenuLabel>
+            <div className="flex items-center justify-between gap-2 pr-1">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Empresas
+              </DropdownMenuLabel>
+              {showSettings ? (
+                <Button
+                  aria-label="Gerenciar empresas"
+                  className="size-7"
+                  onClick={() => setSettingsOpen(true)}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Settings />
+                </Button>
+              ) : null}
+            </div>
             {companies.map((company) => (
               <DropdownMenuItem
                 key={company.id}
@@ -85,6 +106,13 @@ export function CompanySwitcher({
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
+      {showSettings ? (
+        <CompanySettingsDialog
+          onOpenChange={setSettingsOpen}
+          open={settingsOpen}
+        />
+      ) : null}
+    </>
   );
 }
 

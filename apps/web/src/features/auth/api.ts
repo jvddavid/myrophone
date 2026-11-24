@@ -120,6 +120,16 @@ function readSession(data: unknown): AuthSession {
   };
 }
 
+function readOwnsCompany(data: AuthProfile): boolean {
+  const value = (data as { ownsCompany?: unknown }).ownsCompany;
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return data.role === 'OWNER';
+}
+
 function readProfile(data: unknown): AuthProfile {
   if (!isAuthProfile(data)) {
     throw new AuthRequestError(
@@ -128,7 +138,10 @@ function readProfile(data: unknown): AuthProfile {
     );
   }
 
-  return data;
+  return {
+    ...data,
+    ownsCompany: readOwnsCompany(data),
+  };
 }
 
 export async function loginRequest(input: {
@@ -210,6 +223,89 @@ export async function createCompanyRequest(input: {
   }
 
   return readSession(data);
+}
+
+export async function updateProfileRequest(input: {
+  name: string;
+  phone: string;
+}): Promise<AuthProfile> {
+  const { data, error } = await getApi().auth.me.patch(input);
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readProfile(data);
+}
+
+export async function clearAvatarRequest(): Promise<AuthProfile> {
+  const { data, error } = await getApi().auth.me.avatar.delete();
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readProfile(data);
+}
+
+function readCompany(data: unknown): CompanyIdentity {
+  if (!isCompany(data)) {
+    throw new AuthRequestError(
+      'INVALID_RESPONSE',
+      'A API devolveu uma empresa incompleta.',
+    );
+  }
+
+  return data;
+}
+
+export async function createOwnedCompanyRequest(input: {
+  name: string;
+  description?: string;
+}): Promise<CompanyIdentity> {
+  const { data, error } = await getApi().companies.post({
+    name: input.name,
+    description: input.description,
+  });
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readCompany(data);
+}
+
+export async function updateOwnedCompanyRequest(input: {
+  tenantId: string;
+  name: string;
+  description?: string;
+}): Promise<CompanyIdentity> {
+  const { data, error } = await getApi()
+    .companies({ tenantId: input.tenantId })
+    .patch({
+      name: input.name,
+      description: input.description,
+    });
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readCompany(data);
+}
+
+export async function clearLogoRequest(
+  tenantId: string,
+): Promise<CompanyIdentity> {
+  const { data, error } = await getApi()
+    .companies({ tenantId })
+    .logo.delete();
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readCompany(data);
 }
 
 export async function switchCompanyRequest(input: {

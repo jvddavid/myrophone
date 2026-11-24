@@ -1,4 +1,5 @@
-import { ChevronsUpDown, LogOut } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { ChevronsUpDown, CircleUser, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -63,6 +64,12 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/perfil">
+                <CircleUser />
+                Perfil
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onLogout}>
               <LogOut />
               Sair

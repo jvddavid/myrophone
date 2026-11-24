@@ -14,6 +14,7 @@ export interface AuthProfile {
   };
   tenant: CompanyIdentity | null;
   companies: CompanyIdentity[];
+  ownsCompany: boolean;
   role: string | null;
   permissions: string[];
   teams: Array<{
@@ -47,6 +48,7 @@ const messages: Record<string, string> = {
   TENANT_SLUG_IN_USE: 'Já existe uma empresa com esse identificador.',
   INVALID_PASSWORD: 'A senha precisa ter pelo menos 8 caracteres.',
   VALIDATION_ERROR: 'Revise os campos e tente de novo.',
+  NOT_COMPANY_OWNER: 'Só o dono pode gerenciar esta empresa.',
   UNAUTHORIZED: 'Sua sessão expirou. Entre de novo.',
   COMPANY_CREATE_UNAVAILABLE: 'Esta conta já tem uma empresa.',
   INVALID_REFRESH_TOKEN: 'Sua sessão expirou. Entre de novo.',

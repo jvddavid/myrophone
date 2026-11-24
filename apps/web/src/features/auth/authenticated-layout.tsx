@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/sidebar';
 import { queryClient } from '../../query-client';
 import { AppSidebar } from './app-sidebar';
+import { showCompanySettings } from './company-settings-access';
 import { switchCompanyRequest, AuthRequestError } from './api';
 import { logoutSession, saveSession } from './session';
 import { readTokens } from './token-store';
@@ -75,13 +76,18 @@ export function AuthenticatedLayout() {
         companies={auth.companies}
         onLogout={logout}
         onSwitch={onSwitch}
+        showAccess={auth.role === 'OWNER'}
+        showCompanySettings={showCompanySettings({
+          role: auth.role,
+          ownsCompany: auth.ownsCompany,
+        })}
         user={{
           name: displayName,
           email: auth.user.email,
           avatar: auth.user.avatarUrl,
         }}
       />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
           <div className="flex items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
@@ -111,7 +117,7 @@ export function AuthenticatedLayout() {
             {error}
           </p>
         ) : null}
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 pt-0">
           <Outlet />
         </div>
       </SidebarInset>

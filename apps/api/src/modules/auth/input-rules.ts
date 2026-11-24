@@ -36,6 +36,16 @@ export function normalizeDescription(value: string): string {
   return description;
 }
 
+export function normalizeOptionalDescription(
+  value: string | null | undefined,
+): string | null {
+  if (value == null || value.trim().length === 0) {
+    return null;
+  }
+
+  return normalizeDescription(value);
+}
+
 export function normalizeLogoUrl(
   value: string | undefined | null,
 ): string | null {

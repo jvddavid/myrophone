@@ -1,4 +1,4 @@
-import { LayoutDashboard } from 'lucide-react';
+import { Building2, LayoutDashboard, Users } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import {
   Sidebar,
@@ -22,6 +22,8 @@ export function AppSidebar({
   user,
   onSwitch,
   onLogout,
+  showAccess,
+  showCompanySettings,
 }: {
   companies: CompanyIdentity[];
   activeCompanyId: string | null;
@@ -32,6 +34,8 @@ export function AppSidebar({
   };
   onSwitch: (companyId: string) => void;
   onLogout: () => void;
+  showAccess: boolean;
+  showCompanySettings: boolean;
 }) {
   return (
     <Sidebar collapsible="icon">
@@ -40,6 +44,7 @@ export function AppSidebar({
           activeId={activeCompanyId}
           companies={companies}
           onSwitch={onSwitch}
+          showSettings={showCompanySettings}
         />
       </SidebarHeader>
       <SidebarContent>
@@ -54,6 +59,26 @@ export function AppSidebar({
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            {showAccess ? (
+              <>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Acessos">
+                    <Link to="/acessos">
+                      <Users />
+                      <span>Acessos</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Departamentos">
+                    <Link to="/departamentos">
+                      <Building2 />
+                      <span>Departamentos</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </>
+            ) : null}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>

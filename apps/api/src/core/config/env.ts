@@ -66,4 +66,12 @@ export const env = {
   ),
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'info',
   SENTRY_DSN: process.env.SENTRY_DSN,
+  S3_ENDPOINT: process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000',
+  S3_REGION: process.env.S3_REGION ?? 'us-east-1',
+  S3_ACCESS_KEY: process.env.S3_ACCESS_KEY ?? 'minioadmin',
+  S3_SECRET_KEY: process.env.S3_SECRET_KEY ?? 'minioadmin',
+  S3_PUBLIC_BUCKET: process.env.S3_PUBLIC_BUCKET ?? 'myrophone-public',
+  S3_PRIVATE_BUCKET: process.env.S3_PRIVATE_BUCKET ?? 'myrophone-private',
+  S3_PUBLIC_BASE_URL:
+    process.env.S3_PUBLIC_BASE_URL ?? 'http://127.0.0.1:9000/myrophone-public',
 };

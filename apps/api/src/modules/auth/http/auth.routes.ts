@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { AppError } from '../../../core/errors/app-error';
 import { logger } from '../../../core/logger';
+import { getFilesService } from '../../files/runtime';
 import { getRequestMeta } from '../request-meta';
 import {
   createFirstCompany,
@@ -10,6 +11,7 @@ import {
   registerAccount,
   requireAuthContext,
   switchCompany,
+  updateOwnProfile,
 } from '../service';
 
 const registerBodySchema = t.Object({
@@ -38,6 +40,12 @@ const createCompanyBodySchema = t.Object({
 const switchCompanyBodySchema = t.Object({
   tenantId: t.String({ minLength: 1 }),
   refreshToken: t.String({ minLength: 10 }),
+});
+
+const updateProfileBodySchema = t.Object({
+  name: t.String({ minLength: 1, maxLength: 120 }),
+  phone: t.String({ minLength: 1, maxLength: 40 }),
+  email: t.Optional(t.String()),
 });
 
 function toErrorResponse(
@@ -171,6 +179,43 @@ export const authRoutes = new Elysia()
   )
   .get('/auth/me', async ({ request, status }) => {
     try {
+      return await requireAuthContext(request);
+    } catch (error) {
+      return toErrorResponse(error, status);
+    }
+  })
+  .patch(
+    '/auth/me',
+    async ({ body, request, status }) => {
+      try {
+        const auth = await requireAuthContext(request);
+        await updateOwnProfile(
+          {
+            userId: auth.user.id,
+            name: body.name,
+            phone: body.phone,
+            tenantId: auth.tenant?.id ?? null,
+          },
+          getRequestMeta(request),
+        );
+        return await requireAuthContext(request);
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: updateProfileBodySchema,
+    },
+  )
+  .delete('/auth/me/avatar', async ({ request, status }) => {
+    try {
+      const auth = await requireAuthContext(request);
+      const files = await getFilesService();
+      await files.clearAvatar({
+        userId: auth.user.id,
+        tenantId: auth.tenant?.id ?? null,
+        requestMeta: getRequestMeta(request),
+      });
       return await requireAuthContext(request);
     } catch (error) {
       return toErrorResponse(error, status);

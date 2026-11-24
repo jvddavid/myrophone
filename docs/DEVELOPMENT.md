@@ -6,6 +6,7 @@
 - Node.js compatível com toolchain local
 - Redis local para filas (`worker` e jobs da `api`)
 - PostgreSQL local para `api` (Prisma)
+- Docker, se for usar o MinIO local de arquivos
 
 ## Instalação
 
@@ -43,11 +44,19 @@ bun run test
 ## Prisma (API)
 
 ```bash
-cp apps/api/.env.auth.example apps/api/.env
+cp apps/api/.env.example apps/api/.env
 bun run --cwd apps/api prisma:generate
 bun run --cwd apps/api prisma:migrate:dev
 bun run --cwd apps/api prisma:seed
 ```
+
+## MinIO (arquivos)
+
+```bash
+docker compose up -d
+```
+
+Sobe só o MinIO em `127.0.0.1:9000`. O console fica em `http://127.0.0.1:9001`, com usuário e senha `minioadmin`. Postgres e Redis continuam na máquina. Em desenvolvimento a API sobe mesmo com o MinIO parado; o envio de arquivo responde `503` até o armazenamento voltar. Os valores locais estão em `apps/api/.env.example`.
 
 Prisma v7 usa `apps/api/prisma.config.ts` para `DATABASE_URL`.
 

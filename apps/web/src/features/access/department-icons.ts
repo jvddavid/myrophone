@@ -1,0 +1,207 @@
+import {
+  defaultDepartmentIconKey,
+  departmentIconCatalog,
+  type DepartmentIconKey,
+} from '@myrophone/shared';
+import {
+  Archive,
+  Badge,
+  Banknote,
+  Barcode,
+  BookOpen,
+  Boxes,
+  Briefcase,
+  Building,
+  Building2,
+  Calculator,
+  Calendar,
+  CalendarDays,
+  ChartColumn,
+  ChartLine,
+  ChartPie,
+  CircleDollarSign,
+  Clipboard,
+  ClipboardList,
+  Clock,
+  Cog,
+  Coins,
+  Contact,
+  CreditCard,
+  Factory,
+  File,
+  Files,
+  FileText,
+  Flag,
+  Folder,
+  FolderOpen,
+  Folders,
+  Gavel,
+  Globe,
+  GraduationCap,
+  Hammer,
+  Handshake,
+  Headset,
+  HeartPulse,
+  House,
+  IdCard,
+  Inbox,
+  Key,
+  Landmark,
+  Leaf,
+  Library,
+  Lightbulb,
+  Lock,
+  Mail,
+  MapPin,
+  Megaphone,
+  MessageSquare,
+  MessagesSquare,
+  Notebook,
+  NotebookPen,
+  Package,
+  Phone,
+  PiggyBank,
+  Presentation,
+  Receipt,
+  Scale,
+  ScrollText,
+  Search,
+  Settings,
+  Shield,
+  ShieldCheck,
+  ShoppingBag,
+  ShoppingCart,
+  StickyNote,
+  Store,
+  Tag,
+  Target,
+  Timer,
+  Truck,
+  User,
+  UserRound,
+  Users,
+  UsersRound,
+  Wallet,
+  Warehouse,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
+
+export interface DepartmentIconEntry {
+  key: DepartmentIconKey;
+  label: string;
+  icon: LucideIcon;
+}
+
+const departmentIconComponents = {
+  folder: Folder,
+  'folder-open': FolderOpen,
+  folders: Folders,
+  file: File,
+  'file-text': FileText,
+  files: Files,
+  clipboard: Clipboard,
+  'clipboard-list': ClipboardList,
+  notebook: Notebook,
+  'notebook-pen': NotebookPen,
+  'sticky-note': StickyNote,
+  'scroll-text': ScrollText,
+  'book-open': BookOpen,
+  library: Library,
+  archive: Archive,
+  inbox: Inbox,
+  users: Users,
+  user: User,
+  'user-round': UserRound,
+  contact: Contact,
+  'users-round': UsersRound,
+  handshake: Handshake,
+  badge: Badge,
+  'id-card': IdCard,
+  building: Building,
+  'building-2': Building2,
+  landmark: Landmark,
+  warehouse: Warehouse,
+  store: Store,
+  factory: Factory,
+  house: House,
+  'map-pin': MapPin,
+  wallet: Wallet,
+  banknote: Banknote,
+  coins: Coins,
+  'circle-dollar-sign': CircleDollarSign,
+  receipt: Receipt,
+  calculator: Calculator,
+  'piggy-bank': PiggyBank,
+  'credit-card': CreditCard,
+  scale: Scale,
+  gavel: Gavel,
+  shield: Shield,
+  'shield-check': ShieldCheck,
+  calendar: Calendar,
+  'calendar-days': CalendarDays,
+  clock: Clock,
+  timer: Timer,
+  phone: Phone,
+  headset: Headset,
+  mail: Mail,
+  'message-square': MessageSquare,
+  'messages-square': MessagesSquare,
+  megaphone: Megaphone,
+  truck: Truck,
+  package: Package,
+  boxes: Boxes,
+  'shopping-cart': ShoppingCart,
+  'shopping-bag': ShoppingBag,
+  barcode: Barcode,
+  tag: Tag,
+  wrench: Wrench,
+  hammer: Hammer,
+  settings: Settings,
+  cog: Cog,
+  briefcase: Briefcase,
+  presentation: Presentation,
+  'chart-column': ChartColumn,
+  'chart-pie': ChartPie,
+  'chart-line': ChartLine,
+  target: Target,
+  flag: Flag,
+  key: Key,
+  lock: Lock,
+  search: Search,
+  globe: Globe,
+  leaf: Leaf,
+  'heart-pulse': HeartPulse,
+  'graduation-cap': GraduationCap,
+  lightbulb: Lightbulb,
+} as const satisfies Record<DepartmentIconKey, LucideIcon>;
+
+export const departmentIcons: readonly DepartmentIconEntry[] =
+  departmentIconCatalog.map((item) => ({
+    key: item.key,
+    label: item.label,
+    icon: departmentIconComponents[item.key],
+  }));
+
+export const departmentIconByKey: ReadonlyMap<string, DepartmentIconEntry> =
+  new Map(departmentIcons.map((entry) => [entry.key, entry]));
+
+const fallbackDepartmentIcon = departmentIconByKey.get(defaultDepartmentIconKey);
+
+if (!fallbackDepartmentIcon) {
+  throw new Error('Default department icon is missing from the catalog.');
+}
+
+export const defaultDepartmentIcon: DepartmentIconEntry = fallbackDepartmentIcon;
+
+export function departmentIconPayloadKey(selectedKey: string): string | null {
+  return departmentIconByKey.get(selectedKey)?.key ?? null;
+}
+
+export function selectedDepartmentIconKey(storedKey: string | null | undefined): string {
+  if (storedKey && departmentIconByKey.has(storedKey)) {
+    return storedKey;
+  }
+
+  return defaultDepartmentIconKey;
+}

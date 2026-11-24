@@ -54,6 +54,7 @@ export interface TeamRecord {
   slug: string;
   name: string;
   description: string | null;
+  icon: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -161,6 +162,7 @@ export interface PrismaDb {
   teamPermission: SimpleDbDelegate;
   teamPermissionAssignment: SimpleDbDelegate;
   teamMembership: SimpleDbDelegate;
+  storedFile: SimpleDbDelegate;
   $transaction<T>(fn: (transaction: PrismaDb) => Promise<T>): Promise<T>;
   $disconnect?(): Promise<void>;
 }
