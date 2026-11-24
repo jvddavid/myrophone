@@ -1,3 +1,4 @@
+export * from './br/format';
 export * from './core/tenant';
 export * from './departments/icons';
 export * from './jobs/catalog';

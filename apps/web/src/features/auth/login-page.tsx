@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { type ChangeEvent, type FormEvent, useCallback, useState } from 'react';
-import { Input } from '@/components/ui/input';
+import { IconInput } from '@/components/ui/icon-input';
 import { Label } from '@/components/ui/label';
 import { loginRequest, AuthRequestError } from './api';
 import { AuthScreen } from './auth-screen';
@@ -70,8 +70,9 @@ export function LoginPage() {
     >
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
-        <Input
+        <IconInput
           autoComplete="email"
+          icon="email"
           id="email"
           name="email"
           onChange={onChange}
@@ -82,8 +83,9 @@ export function LoginPage() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Senha</Label>
-        <Input
+        <IconInput
           autoComplete="current-password"
+          icon="password"
           id="password"
           minLength={8}
           name="password"

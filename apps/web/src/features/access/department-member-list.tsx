@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getRouteApi } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { ItemGroup } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -13,6 +13,7 @@ import {
 import { DepartmentMemberRow } from './department-member-row';
 import { MemberEmpty, MemberPager, MemberSearchField } from './member-list-ui';
 import { useMemberQueryState } from './member-query-state';
+import { isAbortError, memberSearchRetry, runMemberSearch } from './member-search';
 
 const authenticatedRoute = getRouteApi('/_authenticated');
 const noPeopleTitle = 'Nenhuma pessoa';
@@ -102,22 +103,39 @@ function DepartmentMemberPager({
 export function DepartmentMemberList({ teamId }: { teamId: string | null }) {
   const { auth } = authenticatedRoute.useRouteContext();
   const tenantId = auth.tenant?.id ?? null;
-  const { query, page, setPage, onQueryChange, onPrevious, onNext } =
+  const { term, page, snapshotRef, commitTerm, onPrevious, onNext, onPageChange } =
     useMemberQueryState();
-  const term = query.trim();
   const members = useQuery({
     queryKey: ['department-members', tenantId, teamId ?? 'none', term, page],
-    queryFn: () => {
-      const params = { q: term, page, pageSize: memberPageSize };
+    queryFn: ({ signal }) => {
+      const started = { term, page };
+      const params = { q: term, page, pageSize: memberPageSize, signal };
+      const request = teamId
+        ? listTeamMembersRequest(teamId, params)
+        : listMembersRequest({ ...params, unassigned: true });
 
-      if (teamId) {
-        return listTeamMembersRequest(teamId, params);
-      }
-
-      return listMembersRequest({ ...params, unassigned: true });
+      return runMemberSearch(started, () => snapshotRef.current, signal, request);
     },
+    retry: memberSearchRetry,
     enabled: tenantId !== null,
   });
+  const refetchMembers = members.refetch;
+
+  const onSearch = useCallback(
+    (value: string) => {
+      commitTerm(value);
+    },
+    [commitTerm],
+  );
+
+  const onSearchNow = useCallback(
+    (value: string) => {
+      if (!commitTerm(value)) {
+        void refetchMembers();
+      }
+    },
+    [commitTerm, refetchMembers],
+  );
 
   useEffect(() => {
     if (!members.data) {
@@ -127,9 +145,9 @@ export function DepartmentMemberList({ teamId }: { teamId: string | null }) {
     const lastPage = Math.max(1, Math.ceil(members.data.total / members.data.pageSize));
 
     if (page > lastPage) {
-      setPage(lastPage);
+      onPageChange(lastPage);
     }
-  }, [members.data, page, setPage]);
+  }, [members.data, onPageChange, page]);
 
   const listed = members.data;
   const searching = term.length > 0;
@@ -137,9 +155,14 @@ export function DepartmentMemberList({ teamId }: { teamId: string | null }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <MemberSearchField id={searchId} onChange={onQueryChange} value={query} />
+      <MemberSearchField
+        id={searchId}
+        onSearch={onSearch}
+        onSearchNow={onSearchNow}
+        pending={members.isFetching}
+      />
       {members.isPending ? <Skeleton className="h-16 w-full" /> : null}
-      {members.isError ? (
+      {members.isError && !isAbortError(members.error) ? (
         <p className="text-sm text-destructive" role="alert">
           {accessFailureText(members.error)}
         </p>
@@ -155,7 +178,7 @@ export function DepartmentMemberList({ teamId }: { teamId: string | null }) {
         isSuccess={members.isSuccess}
         listed={listed}
         onNext={onNext}
-        onPageChange={setPage}
+        onPageChange={onPageChange}
         onPrevious={onPrevious}
       />
     </div>

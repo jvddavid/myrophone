@@ -65,10 +65,10 @@ describe('access member list', () => {
       'utf8',
     );
 
-    expect(page).toContain('onPageChange={setPage}');
+    expect(page).toContain('onPageChange={onPageChange}');
     expect(page).toContain('roleBadgeVariant(member.role)');
     expect(departmentList).toContain('<MemberPager');
-    expect(departmentList).toContain('onPageChange={setPage}');
+    expect(departmentList).toContain('onPageChange={onPageChange}');
     expect(departmentList).not.toContain('Anterior');
     expect(roleBadgeVariant('OWNER')).not.toBe(roleBadgeVariant('USER'));
   });

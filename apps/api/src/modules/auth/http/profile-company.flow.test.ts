@@ -98,13 +98,13 @@ describe('PATCH /auth/me', () => {
     expect(updated.body.user).toMatchObject({
       email: owner.email,
       name: 'Novo Nome',
-      phone: '(11) 98888-7777',
+      phone: '11988887777',
     });
     expect((updated.body.tenant as { id: string }).id).toBe(owner.tenantId);
     expect(stored).toMatchObject({
       email: owner.email,
       name: 'Novo Nome',
-      phone: '(11) 98888-7777',
+      phone: '11988887777',
     });
     expect(session).toMatchObject({
       id: owner.sessionId,

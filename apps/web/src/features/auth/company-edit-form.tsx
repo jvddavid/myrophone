@@ -2,8 +2,8 @@ import { ArrowLeft, ImageOff, Save } from 'lucide-react';
 import { type ChangeEvent, type FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { IconInput, IconTextarea } from '@/components/ui/icon-input';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { CompanyMark } from './company-mark';
 import type { CompanyTextDraft } from './company-create-form';
 
@@ -79,7 +79,8 @@ export function CompanyEditForm({
         ) : null}
         <Field>
           <FieldLabel htmlFor="editCompanyName">Nome</FieldLabel>
-          <Input
+          <IconInput
+            icon="company"
             id="editCompanyName"
             minLength={2}
             onChange={(event) => setNextName(event.target.value)}
@@ -89,7 +90,8 @@ export function CompanyEditForm({
         </Field>
         <Field data-invalid={Boolean(error)}>
           <FieldLabel htmlFor="editCompanyDescription">Descrição</FieldLabel>
-          <Textarea
+          <IconTextarea
+            icon="description"
             id="editCompanyDescription"
             maxLength={280}
             onChange={(event) => setNextDescription(event.target.value)}

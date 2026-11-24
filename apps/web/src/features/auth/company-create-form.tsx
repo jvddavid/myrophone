@@ -2,8 +2,7 @@ import { Plus, X } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { IconInput, IconTextarea } from '@/components/ui/icon-input';
 
 export interface CompanyTextDraft {
   name: string;
@@ -34,7 +33,8 @@ export function CompanyCreateForm({
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="newCompanyName">Nome</FieldLabel>
-          <Input
+          <IconInput
+            icon="company"
             id="newCompanyName"
             minLength={2}
             onChange={(event) => setName(event.target.value)}
@@ -44,7 +44,8 @@ export function CompanyCreateForm({
         </Field>
         <Field data-invalid={Boolean(error)}>
           <FieldLabel htmlFor="newCompanyDescription">Descrição</FieldLabel>
-          <Textarea
+          <IconTextarea
+            icon="description"
             id="newCompanyDescription"
             maxLength={280}
             onChange={(event) => setDescription(event.target.value)}

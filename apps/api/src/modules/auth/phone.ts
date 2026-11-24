@@ -1,11 +1,10 @@
+import { parseBrazilPhone } from '@myrophone/shared';
 import { AppError } from '../../core/errors/app-error';
 
-const phonePattern = /^[0-9+()\- ]+$/;
-
 export function normalizePhone(value: string): string {
-  const phone = value.trim();
+  const phone = parseBrazilPhone(value);
 
-  if (phone.length < 8 || phone.length > 20 || !phonePattern.test(phone)) {
+  if (!phone) {
     throw new AppError({
       statusCode: 400,
       code: 'VALIDATION_ERROR',

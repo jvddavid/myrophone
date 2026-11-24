@@ -1,3 +1,6 @@
+import { brazilPhoneDigits, parseBrazilPhone } from '@myrophone/shared';
+import { brazilPhoneInvalidMessage } from '@/lib/brazil-phone';
+
 export interface OwnedCompanyOption {
   id: string;
   name: string;
@@ -69,12 +72,17 @@ export function selectDepartment(
 
 export function createAccessFormError(input: {
   name: string;
+  phone: string;
   password: string;
   selection: CreateAccessSelection;
   companies: OwnedCompanyOption[];
 }): string | null {
   if (input.name.trim().length < 2) {
     return 'O nome precisa ter pelo menos 2 caracteres.';
+  }
+
+  if (!parseBrazilPhone(input.phone)) {
+    return brazilPhoneInvalidMessage;
   }
 
   if (input.password.length < 8) {
@@ -112,7 +120,7 @@ export function toCreateAccessBody(input: {
 } {
   return {
     name: input.name.trim(),
-    phone: input.phone.trim(),
+    phone: brazilPhoneDigits(input.phone),
     email: input.email.trim(),
     password: input.password,
     companies: input.selection.tenantIds.map((tenantId) => ({

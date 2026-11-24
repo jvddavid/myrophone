@@ -13,8 +13,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { IconInput, IconTextarea } from '@/components/ui/icon-input';
 import { companyDraft, type CompanyDraft } from './company-profile';
 
 export function CreateCompanyForm({
@@ -49,7 +48,8 @@ export function CreateCompanyForm({
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="companyName">Nome</FieldLabel>
-              <Input
+              <IconInput
+                icon="company"
                 id="companyName"
                 minLength={2}
                 name="companyName"
@@ -60,7 +60,8 @@ export function CreateCompanyForm({
             </Field>
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="companyDescription">Descrição</FieldLabel>
-              <Textarea
+              <IconTextarea
+                icon="description"
                 id="companyDescription"
                 maxLength={280}
                 minLength={2}
@@ -73,7 +74,8 @@ export function CreateCompanyForm({
             </Field>
             <Field>
               <FieldLabel htmlFor="companyLogoUrl">Logo</FieldLabel>
-              <Input
+              <IconInput
+                icon="logo"
                 id="companyLogoUrl"
                 inputMode="url"
                 name="companyLogoUrl"

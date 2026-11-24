@@ -20,6 +20,7 @@ import {
 import { MemberEmpty, MemberPager, MemberSearchField } from './member-list-ui';
 import { invalidateMemberLists } from './member-queries';
 import { useMemberQueryState } from './member-query-state';
+import { isAbortError, memberSearchRetry, runMemberSearch } from './member-search';
 
 const dialogClassName =
   'max-h-[min(40rem,calc(100dvh-2rem))] w-[calc(100%-2rem)] overflow-y-auto';
@@ -75,21 +76,46 @@ function DepartmentCandidatePicker({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const { query, page, setPage, onQueryChange, onPrevious, onNext } =
+  const { term, page, snapshotRef, commitTerm, onPrevious, onNext, onPageChange } =
     useMemberQueryState();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const term = query.trim();
   const candidates = useQuery({
     queryKey: ['team-candidates', teamId, term, page],
-    queryFn: () =>
-      listTeamCandidatesRequest(teamId, {
-        q: term,
-        page,
-        pageSize: memberPageSize,
-      }),
+    queryFn: ({ signal }) => {
+      const started = { term, page };
+      return runMemberSearch(
+        started,
+        () => snapshotRef.current,
+        signal,
+        listTeamCandidatesRequest(teamId, {
+          q: term,
+          page,
+          pageSize: memberPageSize,
+          signal,
+        }),
+      );
+    },
+    retry: memberSearchRetry,
     enabled: open,
   });
+  const refetchCandidates = candidates.refetch;
+
+  const onSearch = useCallback(
+    (value: string) => {
+      commitTerm(value);
+    },
+    [commitTerm],
+  );
+
+  const onSearchNow = useCallback(
+    (value: string) => {
+      if (!commitTerm(value)) {
+        void refetchCandidates();
+      }
+    },
+    [commitTerm, refetchCandidates],
+  );
 
   useEffect(() => {
     if (!candidates.data) {
@@ -102,9 +128,9 @@ function DepartmentCandidatePicker({
     );
 
     if (page > lastPage) {
-      setPage(lastPage);
+      onPageChange(lastPage);
     }
-  }, [candidates.data, page, setPage]);
+  }, [candidates.data, onPageChange, page]);
 
   const onAdd = useCallback(
     (userId: string) => {
@@ -132,8 +158,9 @@ function DepartmentCandidatePicker({
     <>
       <MemberSearchField
         id={`department-add-${teamId}`}
-        onChange={onQueryChange}
-        value={query}
+        onSearch={onSearch}
+        onSearchNow={onSearchNow}
+        pending={candidates.isFetching}
       />
       {error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -141,7 +168,7 @@ function DepartmentCandidatePicker({
         </p>
       ) : null}
       {candidates.isPending ? <Skeleton className="h-16 w-full" /> : null}
-      {candidates.isError ? (
+      {candidates.isError && !isAbortError(candidates.error) ? (
         <p className="text-sm text-destructive" role="alert">
           {accessFailureText(candidates.error)}
         </p>
@@ -166,7 +193,7 @@ function DepartmentCandidatePicker({
           </ul>
           <MemberPager
             onNext={onNext}
-            onPageChange={setPage}
+            onPageChange={onPageChange}
             onPrevious={onPrevious}
             page={listed.page}
             pageSize={listed.pageSize}

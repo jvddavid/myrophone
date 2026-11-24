@@ -1,3 +1,5 @@
+import { brazilPhoneDigits } from '@myrophone/shared';
+
 export function profileUpdatePayload(input: {
   name: string;
   phone: string;
@@ -5,6 +7,6 @@ export function profileUpdatePayload(input: {
 }): { name: string; phone: string } {
   return {
     name: input.name.trim(),
-    phone: input.phone.trim(),
+    phone: brazilPhoneDigits(input.phone),
   };
 }

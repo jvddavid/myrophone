@@ -95,8 +95,6 @@ for (const item of departmentIconCatalog) {
   departmentIconKeys.add(item.key);
 }
 
-export function isDepartmentIconKey(
-  value: string,
-): value is DepartmentIconKey {
+export function isDepartmentIconKey(value: string): value is DepartmentIconKey {
   return departmentIconKeys.has(value);
 }

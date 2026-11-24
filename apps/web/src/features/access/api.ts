@@ -33,6 +33,7 @@ export interface MemberListParams {
   page?: number;
   pageSize?: number;
   unassigned?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface MemberListPage {
@@ -247,6 +248,14 @@ export function memberListQuery(input: MemberListParams): Record<string, string>
   return query;
 }
 
+function listRequestOptions(signal?: AbortSignal): { fetch?: { signal: AbortSignal } } {
+  if (!signal) {
+    return {};
+  }
+
+  return { fetch: { signal } };
+}
+
 function readMemberPage(data: unknown): MemberListPage {
   if (
     !isRecord(data) ||
@@ -272,6 +281,7 @@ export async function listMembersRequest(
 ): Promise<MemberListPage> {
   const { data, error } = await accessRoutes().companies.members.get({
     query: memberListQuery(params),
+    ...listRequestOptions(params.signal),
   });
   throwResponseError(error);
   return readMemberPage(data);
@@ -283,7 +293,10 @@ export async function listTeamMembersRequest(
 ): Promise<MemberListPage> {
   const { data, error } = await accessRoutes()
     .teams({ teamId })
-    .members.get({ query: memberListQuery(params) });
+    .members.get({
+      query: memberListQuery(params),
+      ...listRequestOptions(params.signal),
+    });
   throwResponseError(error);
   return readMemberPage(data);
 }
@@ -294,7 +307,10 @@ export async function listTeamCandidatesRequest(
 ): Promise<MemberListPage> {
   const { data, error } = await accessRoutes()
     .teams({ teamId })
-    .candidates.get({ query: memberListQuery(params) });
+    .candidates.get({
+      query: memberListQuery(params),
+      ...listRequestOptions(params.signal),
+    });
   throwResponseError(error);
   return readMemberPage(data);
 }

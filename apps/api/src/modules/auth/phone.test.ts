@@ -3,12 +3,17 @@ import { AppError } from '../../core/errors/app-error';
 import { normalizePhone } from './phone';
 
 describe('normalizePhone', () => {
-  it('trims a phone made of digits and allowed separators', () => {
-    expect(normalizePhone(' (11) 98765-4321 ')).toBe('(11) 98765-4321');
+  it('stores 11 digits from a masked mobile number', () => {
+    expect(normalizePhone(' (11) 98765-4321 ')).toBe('11987654321');
   });
 
-  it('rejects a phone outside 8 to 20 characters', () => {
+  it('stores 10 digits from a landline', () => {
+    expect(normalizePhone('(11) 3456-7890')).toBe('1134567890');
+  });
+
+  it('rejects a phone that is not 10 or 11 digits', () => {
     expect(() => normalizePhone('1234567')).toThrow(AppError);
+    expect(() => normalizePhone('00000000')).toThrow(AppError);
   });
 
   it('rejects a phone with letters', () => {

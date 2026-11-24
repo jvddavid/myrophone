@@ -1,9 +1,13 @@
+import { brazilPhoneDigits, parseBrazilPhone } from '@myrophone/shared';
 import { ImageOff, Save } from 'lucide-react';
 import { type ChangeEvent, type FormEvent, useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { IconInput } from '@/components/ui/icon-input';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { brazilPhoneInvalidMessage } from '@/lib/brazil-phone';
 import { AuthRequestError, clearAvatarRequest, updateProfileRequest } from '../auth/api';
 import { companyInitials } from '../auth/company-profile';
 import { FileRequestError, uploadStoredFile } from '../files/api';
@@ -33,7 +37,7 @@ export function ProfileForm({
   onChanged: () => Promise<void>;
 }) {
   const [name, setName] = useState(initialName);
-  const [phone, setPhone] = useState(initialPhone);
+  const [phone, setPhone] = useState(() => brazilPhoneDigits(initialPhone));
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl);
   const [error, setError] = useState<string | null>(null);
   const [savePending, setSavePending] = useState(false);
@@ -42,12 +46,16 @@ export function ProfileForm({
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      if (!parseBrazilPhone(phone)) {
+        setError(brazilPhoneInvalidMessage);
+        return;
+      }
       setSavePending(true);
       setError(null);
       void updateProfileRequest(profileUpdatePayload({ name, phone, email }))
         .then(async (profile) => {
           setName(profile.user.name ?? name);
-          setPhone(profile.user.phone ?? phone);
+          setPhone(brazilPhoneDigits(profile.user.phone ?? phone));
           setAvatarUrl(profile.user.avatarUrl);
           await onChanged();
         })
@@ -138,12 +146,20 @@ export function ProfileForm({
         </div>
         <Field>
           <FieldLabel htmlFor="profileEmail">E-mail</FieldLabel>
-          <Input disabled id="profileEmail" readOnly type="email" value={email} />
+          <IconInput
+            disabled
+            icon="email"
+            id="profileEmail"
+            readOnly
+            type="email"
+            value={email}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="profileName">Nome</FieldLabel>
-          <Input
+          <IconInput
             autoComplete="name"
+            icon="person"
             id="profileName"
             minLength={2}
             name="name"
@@ -152,21 +168,13 @@ export function ProfileForm({
             value={name}
           />
         </Field>
-        <Field data-invalid={Boolean(error)}>
-          <FieldLabel htmlFor="profilePhone">Telefone</FieldLabel>
-          <Input
-            autoComplete="tel"
-            id="profilePhone"
-            maxLength={20}
-            minLength={8}
-            name="phone"
-            onChange={(event) => setPhone(event.target.value)}
-            required
-            type="tel"
-            value={phone}
-          />
-          {error ? <FieldError>{error}</FieldError> : null}
-        </Field>
+        <PhoneInput
+          error={error}
+          id="profilePhone"
+          onChange={setPhone}
+          required
+          value={phone}
+        />
         <Button disabled={savePending || avatarPending} type="submit">
           <Save />
           {savePending ? 'Salvando…' : 'Salvar'}

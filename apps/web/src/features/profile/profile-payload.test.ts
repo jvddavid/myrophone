@@ -11,7 +11,7 @@ describe('profileUpdatePayload', () => {
       }),
     ).toEqual({
       name: 'Ana Silva',
-      phone: '(11) 98888-7777',
+      phone: '11988887777',
     });
   });
 });

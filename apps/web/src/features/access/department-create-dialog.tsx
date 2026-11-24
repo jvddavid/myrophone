@@ -11,8 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { IconInput, IconTextarea } from '@/components/ui/icon-input';
 import { accessFailureText, createTeamRequest } from './api';
 import { invalidateMemberLists } from './member-queries';
 import { DepartmentIconPicker } from './department-icon-picker';
@@ -116,7 +115,8 @@ export function DepartmentCreateDialog({
           <FieldGroup>
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="departmentName">Nome</FieldLabel>
-              <Input
+              <IconInput
+                icon="department"
                 id="departmentName"
                 minLength={2}
                 onChange={(event) => setName(event.target.value)}
@@ -126,7 +126,8 @@ export function DepartmentCreateDialog({
             </Field>
             <Field>
               <FieldLabel htmlFor="departmentDescription">Descrição</FieldLabel>
-              <Textarea
+              <IconTextarea
+                icon="description"
                 id="departmentDescription"
                 onChange={(event) => setDescription(event.target.value)}
                 value={description}

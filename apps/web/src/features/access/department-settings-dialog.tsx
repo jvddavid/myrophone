@@ -10,8 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { IconInput, IconTextarea } from '@/components/ui/icon-input';
 import { accessFailureText, updateTeamRequest, type TeamSummary } from './api';
 import { invalidateMemberLists } from './member-queries';
 import { DepartmentIconPicker } from './department-icon-picker';
@@ -93,7 +92,8 @@ function DepartmentSettingsForm({
         <FieldGroup>
           <Field data-invalid={Boolean(error)}>
             <FieldLabel htmlFor={`department-settings-name-${team.id}`}>Nome</FieldLabel>
-            <Input
+            <IconInput
+              icon="department"
               id={`department-settings-name-${team.id}`}
               minLength={2}
               onChange={(event) => setName(event.target.value)}
@@ -105,7 +105,8 @@ function DepartmentSettingsForm({
             <FieldLabel htmlFor={`department-settings-description-${team.id}`}>
               Descrição
             </FieldLabel>
-            <Textarea
+            <IconTextarea
+              icon="description"
               id={`department-settings-description-${team.id}`}
               onChange={(event) => setDescription(event.target.value)}
               value={description}

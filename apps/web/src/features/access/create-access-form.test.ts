@@ -93,6 +93,7 @@ describe('selectDepartment', () => {
 describe('createAccessFormError', () => {
   const valid = {
     name: 'Pessoa',
+    phone: '11987654321',
     password: 'senha-forte',
     selection: initialCreateAccessSelection(companies, active.id),
     companies,
@@ -107,6 +108,15 @@ describe('createAccessFormError', () => {
         selection: { tenantIds: [], teamByTenant: {} },
       }),
     ).toBe('O nome precisa ter pelo menos 2 caracteres.');
+  });
+
+  it('rejects a phone without DDD length', () => {
+    expect(createAccessFormError({ ...valid, phone: '' })).toBe(
+      'Informe um telefone com DDD, com 10 ou 11 dígitos.',
+    );
+    expect(createAccessFormError({ ...valid, phone: '00000000' })).toBe(
+      'Informe um telefone com DDD, com 10 ou 11 dígitos.',
+    );
   });
 
   it('rejects a password shorter than 8 characters', () => {
@@ -156,7 +166,7 @@ describe('toCreateAccessBody', () => {
       }),
     ).toEqual({
       name: 'Nova Pessoa',
-      phone: '(11) 98888-7777',
+      phone: '11988887777',
       email: 'Pessoa@Exemplo.com',
       password: 'senha-forte',
       companies: [

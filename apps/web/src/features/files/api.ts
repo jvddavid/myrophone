@@ -1,3 +1,5 @@
+import { apiBaseUrl } from '../../api/base-url';
+import { sessionFetch } from '../auth/session-renewal';
 import { readAccessToken } from '../auth/token-store';
 
 const messages: Record<string, string> = {
@@ -18,16 +20,6 @@ export class FileRequestError extends Error {
     this.name = 'FileRequestError';
     this.code = code;
   }
-}
-
-function apiBaseUrl(): string {
-  const configured = import.meta.env.VITE_API_URL?.trim();
-
-  if (configured) {
-    return configured.replace(/\/$/, '');
-  }
-
-  return `${window.location.origin}/api`;
 }
 
 function fileErrorMessage(code: string, fallback: string): string {
@@ -55,7 +47,7 @@ export async function uploadStoredFile(input: {
   let response: Response;
 
   try {
-    response = await fetch(`${apiBaseUrl()}/files`, {
+    response = await sessionFetch(`${apiBaseUrl()}/files`, {
       method: 'POST',
       headers: token ? { authorization: `Bearer ${token}` } : {},
       body: form,

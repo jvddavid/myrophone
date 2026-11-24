@@ -1,4 +1,5 @@
-import { logoutRequest, profileRequest, refreshRequest } from './api';
+import { logoutRequest, profileRequest } from './api';
+import { abandonSessionRenewal, noteAccessToken } from './session-renewal';
 import { clearTokens, readTokens, writeTokens } from './token-store';
 import type { AuthProfile, AuthSession } from './types';
 
@@ -7,6 +8,7 @@ function persistSession(session: AuthSession): void {
     accessToken: session.tokens.accessToken,
     refreshToken: session.tokens.refreshToken,
   });
+  noteAccessToken(session.tokens.accessToken);
 }
 
 export function saveSession(session: AuthSession): void {
@@ -15,42 +17,23 @@ export function saveSession(session: AuthSession): void {
 
 let pendingSession: Promise<AuthProfile | null> | null = null;
 
-async function refreshStoredSession(): Promise<boolean> {
-  const tokens = readTokens();
-
-  if (!tokens) {
-    return false;
-  }
-
-  try {
-    persistSession(await refreshRequest(tokens.refreshToken));
-    return true;
-  } catch {
-    clearTokens();
-    return false;
-  }
-}
-
 async function loadSession(): Promise<AuthProfile | null> {
   if (!readTokens()) {
     return null;
   }
 
-  let profile = await profileRequest();
-
-  if (profile === 'unauthorized') {
-    const refreshed = await refreshStoredSession();
-
-    if (!refreshed) {
-      return null;
-    }
-
-    profile = await profileRequest();
-  }
+  const profile = await profileRequest();
 
   if (profile === 'unauthorized') {
     clearTokens();
+    abandonSessionRenewal();
     return null;
+  }
+
+  const tokens = readTokens();
+
+  if (tokens) {
+    noteAccessToken(tokens.accessToken);
   }
 
   return profile;
@@ -65,6 +48,7 @@ export function ensureSession(): Promise<AuthProfile | null> {
 }
 
 export async function logoutSession(): Promise<void> {
+  abandonSessionRenewal();
   const tokens = readTokens();
   clearTokens();
 

@@ -1,7 +1,10 @@
+import { parseBrazilPhone } from '@myrophone/shared';
 import { useNavigate } from '@tanstack/react-router';
 import { type ChangeEvent, type FormEvent, useCallback, useState } from 'react';
-import { Input } from '@/components/ui/input';
+import { IconInput } from '@/components/ui/icon-input';
 import { Label } from '@/components/ui/label';
+import { PhoneInput } from '@/components/ui/phone-input';
+import { brazilPhoneInvalidMessage } from '@/lib/brazil-phone';
 import { AuthRequestError, registerRequest } from './api';
 import { AuthScreen } from './auth-screen';
 import { registerPasswordError } from './register-form';
@@ -33,6 +36,9 @@ export function RegisterPage() {
     const { name, value } = event.target;
     setValues((current) => ({ ...current, [name]: value }));
   }, []);
+  const onPhone = useCallback((phone: string) => {
+    setValues((current) => ({ ...current, phone }));
+  }, []);
 
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -48,12 +54,19 @@ export function RegisterPage() {
         return;
       }
 
+      const phone = parseBrazilPhone(values.phone);
+
+      if (!phone) {
+        setError(brazilPhoneInvalidMessage);
+        return;
+      }
+
       setPending(true);
       setError(null);
 
       void registerRequest({
         name: values.name.trim(),
-        phone: values.phone.trim(),
+        phone,
         email: values.email.trim(),
         password: values.password,
       })
@@ -90,8 +103,9 @@ export function RegisterPage() {
     >
       <div className="space-y-2">
         <Label htmlFor="name">Seu nome</Label>
-        <Input
+        <IconInput
           autoComplete="name"
+          icon="person"
           id="name"
           minLength={2}
           name="name"
@@ -100,24 +114,12 @@ export function RegisterPage() {
           value={values.name}
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="phone">Telefone</Label>
-        <Input
-          autoComplete="tel"
-          id="phone"
-          maxLength={20}
-          minLength={8}
-          name="phone"
-          onChange={onChange}
-          required
-          type="tel"
-          value={values.phone}
-        />
-      </div>
+      <PhoneInput id="phone" onChange={onPhone} required value={values.phone} />
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
-        <Input
+        <IconInput
           autoComplete="email"
+          icon="email"
           id="email"
           name="email"
           onChange={onChange}
@@ -128,8 +130,9 @@ export function RegisterPage() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Senha</Label>
-        <Input
+        <IconInput
           autoComplete="new-password"
+          icon="password"
           id="password"
           minLength={8}
           name="password"
@@ -141,8 +144,9 @@ export function RegisterPage() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="confirmPassword">Confirmar senha</Label>
-        <Input
+        <IconInput
           autoComplete="new-password"
+          icon="password"
           id="confirmPassword"
           minLength={8}
           name="confirmPassword"

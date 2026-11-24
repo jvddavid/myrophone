@@ -92,7 +92,7 @@ function DepartmentSection({
           {team.description ? (
             <p className="break-words text-sm text-muted-foreground">{team.description}</p>
           ) : null}
-          {open ? <DepartmentMemberList teamId={team.id} /> : null}
+          {open ? <DepartmentMemberList key={team.id} teamId={team.id} /> : null}
         </div>
       </AccordionItemWithActions>
       <DepartmentAddControl
@@ -116,7 +116,7 @@ function UnassignedSection({ open }: { open: boolean }) {
         <span className="min-w-0 flex-1 break-words text-left">Sem departamento</span>
       </AccordionTrigger>
       <AccordionContent>
-        {open ? <DepartmentMemberList teamId={null} /> : null}
+        {open ? <DepartmentMemberList key={unassignedValue} teamId={null} /> : null}
       </AccordionContent>
     </AccordionItem>
   );

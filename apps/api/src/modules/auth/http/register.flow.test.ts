@@ -35,7 +35,7 @@ describe('POST /auth/register', () => {
     expect(created.body.user).toMatchObject({
       email,
       name: 'Ana Teste',
-      phone: '(11) 98765-4321',
+      phone: '11987654321',
       avatarUrl: null,
       emailVerifiedAt: null,
     });

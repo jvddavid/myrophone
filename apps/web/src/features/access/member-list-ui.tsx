@@ -1,5 +1,6 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { type ChangeEvent, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Search } from 'lucide-react';
+import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { memberSearchDebounceMs } from './member-search';
 import { Button } from '@/components/ui/button';
 import {
   Empty,
@@ -19,32 +20,80 @@ import {
 
 export function MemberSearchField({
   id,
-  value,
-  onChange,
+  pending,
+  onSearch,
+  onSearchNow,
 }: {
   id: string;
-  value: string;
-  onChange: (value: string) => void;
+  pending: boolean;
+  onSearch: (value: string) => void;
+  onSearchNow: (value: string) => void;
 }) {
+  const [value, setValue] = useState('');
+  const valueRef = useRef('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearTimer, [clearTimer]);
+
   const onInput = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      onChange(event.target.value);
+      const next = event.target.value;
+      valueRef.current = next;
+      setValue(next);
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        onSearch(next);
+      }, memberSearchDebounceMs);
     },
-    [onChange],
+    [clearTimer, onSearch],
   );
 
+  const onRefresh = useCallback(() => {
+    clearTimer();
+    onSearchNow(valueRef.current);
+  }, [clearTimer, onSearchNow]);
+
   return (
-    <Field>
+    <Field className="min-w-0">
       <FieldLabel htmlFor={id}>Buscar</FieldLabel>
-      <Input
-        autoComplete="off"
-        id={id}
-        maxLength={200}
-        onChange={onInput}
-        placeholder="Nome ou e-mail"
-        type="search"
-        value={value}
-      />
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            autoComplete="off"
+            className="pl-9"
+            id={id}
+            maxLength={200}
+            onChange={onInput}
+            placeholder="Buscar por nome ou e-mail"
+            type="search"
+            value={value}
+          />
+        </div>
+        <Button
+          aria-busy={pending}
+          aria-label="Buscar novamente"
+          className="shrink-0"
+          disabled={pending}
+          onClick={onRefresh}
+          size="icon"
+          type="button"
+          variant="outline"
+        >
+          {pending ? <Loader2 aria-hidden="true" className="animate-spin" /> : <RefreshCw aria-hidden="true" />}
+        </Button>
+      </div>
     </Field>
   );
 }

@@ -296,7 +296,7 @@ describe('POST /companies/members', () => {
     expect(response.body.user).toMatchObject({
       name: 'Nova Pessoa',
       email,
-      phone: '(11) 98888-7777',
+      phone: '11988887777',
     });
     expect(response.body).not.toHaveProperty('password');
     expect(JSON.stringify(response.body)).not.toContain('passwordHash');

@@ -5,9 +5,17 @@ import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from '@/components/theme-provider';
+import { setSessionLostHandler } from './features/auth/session-renewal';
 import { queryClient } from './query-client';
 import { router } from './router';
 import './styles/index.css';
+
+setSessionLostHandler(() => {
+  queryClient.clear();
+  queueMicrotask(() => {
+    void router.navigate({ to: '/login' });
+  });
+});
 
 const rootElement = document.getElementById('root');
 

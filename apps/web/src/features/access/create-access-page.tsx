@@ -2,6 +2,7 @@ import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, UserPlus } from 'lucide-react';
 import { type ChangeEvent, type FormEvent, useCallback, useState } from 'react';
+import { brazilPhoneDigits } from '@myrophone/shared';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -16,7 +17,8 @@ import {
   FieldGroup,
   FieldLabel,
 } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
+import { IconInput } from '@/components/ui/icon-input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import {
   Select,
   SelectContent,
@@ -103,8 +105,8 @@ function CreateAccessForm({
   const onName = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setName(event.target.value);
   }, []);
-  const onPhone = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setPhone(event.target.value);
+  const onPhone = useCallback((digits: string) => {
+    setPhone(digits);
   }, []);
   const onEmail = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value);
@@ -126,6 +128,7 @@ function CreateAccessForm({
       event.preventDefault();
       const formError = createAccessFormError({
         name,
+        phone,
         password,
         selection,
         companies,
@@ -139,7 +142,13 @@ function CreateAccessForm({
       setPending(true);
       setError(null);
       void createMemberRequest(
-        toCreateAccessBody({ name, phone, email, password, selection }),
+        toCreateAccessBody({
+          name,
+          phone: brazilPhoneDigits(phone),
+          email,
+          password,
+          selection,
+        }),
       )
         .then(() => {
           void invalidateMemberLists(queryClient);
@@ -159,29 +168,21 @@ function CreateAccessForm({
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="accessName">Nome</FieldLabel>
-          <Input
+          <IconInput
             autoComplete="name"
+            icon="person"
             id="accessName"
             name="accessName"
             onChange={onName}
             value={name}
           />
         </Field>
-        <Field>
-          <FieldLabel htmlFor="accessPhone">Telefone</FieldLabel>
-          <Input
-            autoComplete="tel"
-            id="accessPhone"
-            name="accessPhone"
-            onChange={onPhone}
-            type="tel"
-            value={phone}
-          />
-        </Field>
+        <PhoneInput id="accessPhone" name="accessPhone" onChange={onPhone} value={phone} />
         <Field>
           <FieldLabel htmlFor="accessEmail">E-mail</FieldLabel>
-          <Input
+          <IconInput
             autoComplete="email"
+            icon="email"
             id="accessEmail"
             name="accessEmail"
             onChange={onEmail}
@@ -191,8 +192,9 @@ function CreateAccessForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="accessPassword">Senha</FieldLabel>
-          <Input
+          <IconInput
             autoComplete="new-password"
+            icon="password"
             id="accessPassword"
             name="accessPassword"
             onChange={onPassword}
