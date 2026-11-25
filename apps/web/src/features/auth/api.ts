@@ -45,6 +45,7 @@ function isAuthProfile(value: unknown): value is AuthProfile {
     isNullableString(value.user.avatarUrl) &&
     (value.user.emailVerifiedAt === null ||
       isTimestamp(value.user.emailVerifiedAt)) &&
+    typeof value.emailActivationRequired === 'boolean' &&
     (value.tenant === null || isCompany(value.tenant)) &&
     Array.isArray(value.companies) &&
     value.companies.every(isCompany) &&
@@ -188,6 +189,36 @@ export async function refreshRequest(refreshToken: string): Promise<AuthSession>
   }
 
   return readSession(data);
+}
+
+export async function confirmEmailTokenRequest(
+  token: string,
+): Promise<AuthSession> {
+  const { data, error } = await getApi().auth.email.confirm.post({ token });
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readSession(data);
+}
+
+export async function confirmEmailCodeRequest(code: string): Promise<AuthProfile> {
+  const { data, error } = await getApi().auth.email.code.post({ code });
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
+
+  return readProfile(data);
+}
+
+export async function resendActivationEmailRequest(): Promise<void> {
+  const { error } = await getApi().auth.email.resend.post();
+
+  if (error) {
+    throw toAuthRequestError(error);
+  }
 }
 
 export async function logoutRequest(refreshToken: string): Promise<void> {

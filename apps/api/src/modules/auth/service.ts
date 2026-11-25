@@ -1,13 +1,24 @@
 import {
+  type DepartmentIconKey,
   defaultDepartmentIconKey,
   isDepartmentIconKey,
-  type DepartmentIconKey,
   normalizeTenantId,
 } from '@myrophone/shared';
 import { env } from '../../core/config/env';
 import { getPrisma } from '../../core/db/prisma';
 import { AppError } from '../../core/errors/app-error';
-import { assertTenantOwner } from './company-access';
+import { issueEmailActivation } from '../email/activation';
+import { prismaEmailActivationStore } from '../email/activation-store';
+import {
+  isEmailActivationRequired,
+  resolveEmailDelivery,
+} from '../email/email-config';
+import { transportFor } from '../email/mailer';
+import {
+  assertTenantPermission,
+  copyRoleTemplateGrants,
+} from './company-permission-store';
+import { effectivePermissionKeys } from './company-permissions';
 import { chooseActiveTenantId, withSlugSuffix } from './company-selection';
 import {
   type ActionLogRecord,
@@ -78,6 +89,7 @@ export interface AuthContext {
     emailVerifiedAt: string | null;
     isActive: boolean;
   };
+  emailActivationRequired: boolean;
   tenant: CompanySummary | null;
   companies: CompanySummary[];
   ownsCompany: boolean;
@@ -134,14 +146,10 @@ function computeRefreshExpiryDate(): Date {
   return result;
 }
 
-function toUniqueSortedPermissions(
-  membership: MembershipWithRelations,
-): string[] {
-  const permissions = membership.role.permissions.map(
-    (item) => item.permission.key,
+function memberGrantKeys(membership: MembershipWithRelations): string[] {
+  return (membership.permissionGrants ?? []).map(
+    (grant) => grant.permissionKey,
   );
-
-  return [...new Set(permissions)].sort((a, b) => a.localeCompare(b));
 }
 
 function toUniqueSortedTeams(
@@ -170,12 +178,6 @@ function toUniqueSortedTeams(
   }
 
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function collectTeamPermissions(teams: TeamContextItem[]): string[] {
-  return [...new Set(teams.flatMap((team) => team.permissionKeys))].sort(
-    (a, b) => a.localeCompare(b),
-  );
 }
 
 export interface CompanySummary {
@@ -264,6 +266,7 @@ function toAccountContext(
     permissions: [],
     teams: [],
     teamPermissions: [],
+    emailActivationRequired: isEmailActivationRequired(),
   };
 }
 
@@ -273,6 +276,10 @@ function toAuthContext(
   access: ActiveCompanyList,
 ): AuthContext {
   const teams = toUniqueSortedTeams(membership);
+  const rights = effectivePermissionKeys({
+    role: membership.role.name,
+    grants: memberGrantKeys(membership),
+  });
 
   return {
     sessionId,
@@ -282,9 +289,10 @@ function toAuthContext(
     companies: access.companies,
     ownsCompany: access.ownsCompany,
     role: membership.role.name,
-    permissions: toUniqueSortedPermissions(membership),
+    permissions: rights.permissions,
     teams,
-    teamPermissions: collectTeamPermissions(teams),
+    teamPermissions: rights.teamPermissions,
+    emailActivationRequired: isEmailActivationRequired(),
   };
 }
 
@@ -337,6 +345,11 @@ async function findActiveMembership(
                 permission: true,
               },
             },
+          },
+        },
+        permissionGrants: {
+          select: {
+            permissionKey: true,
           },
         },
         teams: {
@@ -875,11 +888,7 @@ export async function createFirstCompany(
     });
   }
 
-  const accessToken = await reissueAccessToken(
-    session,
-    user,
-    result.tenantId,
-  );
+  const accessToken = await reissueAccessToken(session, user, result.tenantId);
   const companies = await listActiveCompanies(prisma, user.id);
 
   return toAuthResponse(
@@ -896,7 +905,12 @@ export async function createFirstCompany(
 }
 
 export async function updateOwnProfile(
-  input: { userId: string; name: string; phone: string; tenantId: string | null },
+  input: {
+    userId: string;
+    name: string;
+    phone: string;
+    tenantId: string | null;
+  },
   requestMeta: RequestMeta,
 ): Promise<void> {
   const name = normalizeName(input.name, 'Name');
@@ -991,7 +1005,11 @@ export async function updateOwnedCompany(
   },
   requestMeta: RequestMeta,
 ): Promise<CompanySummary> {
-  await assertTenantOwner(input.actorUserId, input.tenantId);
+  await assertTenantPermission(
+    input.actorUserId,
+    input.tenantId,
+    'tenant.manage',
+  );
   const name = normalizeName(input.name, 'Company name');
   const description = normalizeOptionalDescription(input.description);
   const prisma = await getPrisma();
@@ -1026,7 +1044,7 @@ export async function readOwnedCompany(
   actorUserId: string,
   tenantId: string,
 ): Promise<CompanySummary> {
-  await assertTenantOwner(actorUserId, tenantId);
+  await assertTenantPermission(actorUserId, tenantId, 'tenant.manage');
   const prisma = await getPrisma();
   const tenant = asType<CompanySummary | null>(
     await prisma.tenant.findUnique({
@@ -1200,6 +1218,8 @@ export async function registerAccount(
     throw error;
   }
 
+  await sendRegistrationActivation(prisma, user);
+
   const opened = await createAccountSessionTokens(prisma, user, requestMeta);
 
   await createActionLog(prisma, {
@@ -1222,39 +1242,44 @@ export async function registerAccount(
   );
 }
 
-export async function loginWithPassword(
-  input: {
-    email: string;
-    password: string;
-  },
+async function sendRegistrationActivation(
+  prisma: PrismaDb,
+  user: UserRecord,
+): Promise<void> {
+  const delivery = resolveEmailDelivery();
+
+  if (!delivery.enabled) {
+    return;
+  }
+
+  try {
+    await issueEmailActivation({
+      user: { id: user.id, email: user.email, name: user.name },
+      store: prismaEmailActivationStore(prisma),
+      delivery,
+      transport: transportFor(delivery.apiKey),
+    });
+  } catch (error) {
+    await prisma.user.delete({ where: { id: user.id } });
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError({
+      statusCode: 502,
+      code: 'EMAIL_DELIVERY_FAILED',
+      message: 'Could not send the activation email.',
+    });
+  }
+}
+
+async function openSessionForActiveUser(
+  prisma: PrismaDb,
+  user: UserRecord,
   requestMeta: RequestMeta,
+  action: 'auth.login' | 'auth.email_confirm',
 ): Promise<AuthResponse> {
-  const prisma = await getPrisma();
-
-  const user = asType<UserRecord | null>(
-    await prisma.user.findUnique({
-      where: {
-        email: normalizeEmail(input.email),
-      },
-    }),
-  );
-
-  if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
-    throw new AppError({
-      statusCode: 401,
-      code: 'INVALID_CREDENTIALS',
-      message: 'Invalid email or password.',
-    });
-  }
-
-  if (!user.isActive) {
-    throw new AppError({
-      statusCode: 403,
-      code: 'USER_DISABLED',
-      message: 'User is disabled.',
-    });
-  }
-
   const memberships = asType<
     Array<{ tenantId: string; createdAt: Date; status: string }>
   >(
@@ -1270,7 +1295,7 @@ export async function loginWithPassword(
 
     await createActionLog(prisma, {
       actorUserId: user.id,
-      action: 'auth.login',
+      action,
       entityType: 'session',
       entityId: opened.tokens.sessionId,
       requestMeta,
@@ -1305,13 +1330,75 @@ export async function loginWithPassword(
   await createActionLog(prisma, {
     tenantId: membership.tenantId,
     actorUserId: membership.userId,
-    action: 'auth.login',
+    action,
     entityType: 'session',
     entityId: tokenSet.sessionId,
     requestMeta,
   });
 
   return toAuthResponse(membership, tokenSet, companies);
+}
+
+export async function loginWithPassword(
+  input: {
+    email: string;
+    password: string;
+  },
+  requestMeta: RequestMeta,
+): Promise<AuthResponse> {
+  const prisma = await getPrisma();
+  const user = asType<UserRecord | null>(
+    await prisma.user.findUnique({
+      where: {
+        email: normalizeEmail(input.email),
+      },
+    }),
+  );
+
+  if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
+    throw new AppError({
+      statusCode: 401,
+      code: 'INVALID_CREDENTIALS',
+      message: 'Invalid email or password.',
+    });
+  }
+
+  if (!user.isActive) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'USER_DISABLED',
+      message: 'User is disabled.',
+    });
+  }
+
+  return openSessionForActiveUser(prisma, user, requestMeta, 'auth.login');
+}
+
+export async function openSessionForUserId(
+  userId: string,
+  requestMeta: RequestMeta,
+): Promise<AuthResponse> {
+  const prisma = await getPrisma();
+  const user = asType<UserRecord | null>(
+    await prisma.user.findUnique({
+      where: { id: userId },
+    }),
+  );
+
+  if (!user?.isActive) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'USER_DISABLED',
+      message: 'User is disabled.',
+    });
+  }
+
+  return openSessionForActiveUser(
+    prisma,
+    user,
+    requestMeta,
+    'auth.email_confirm',
+  );
 }
 
 export async function refreshAuthSession(
@@ -1540,6 +1627,7 @@ export async function resolveAuthContextFromRequest(
 
 export async function requireAuthContext(
   request: Request,
+  options?: { allowUnverifiedEmail?: boolean },
 ): Promise<AuthContext> {
   const authContext = await resolveAuthContextFromRequest(request);
 
@@ -1548,6 +1636,18 @@ export async function requireAuthContext(
       statusCode: 401,
       code: 'UNAUTHORIZED',
       message: 'Authentication is required.',
+    });
+  }
+
+  if (
+    !options?.allowUnverifiedEmail &&
+    isEmailActivationRequired() &&
+    !authContext.user.emailVerifiedAt
+  ) {
+    throw new AppError({
+      statusCode: 403,
+      code: 'EMAIL_NOT_VERIFIED',
+      message: 'Confirm your email before using the product.',
     });
   }
 
@@ -2251,6 +2351,11 @@ export async function createTenantUser(
         },
       }),
     );
+    await copyRoleTemplateGrants(transaction, {
+      tenantId: input.tenantId,
+      membershipId: membership.id,
+      role: roleName,
+    });
 
     const teamIds = await resolveTeamIdsForMembership(
       transaction,

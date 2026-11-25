@@ -10,15 +10,28 @@ import {
 } from '@/components/ui/card';
 import { listMembersRequest, listTeamsRequest } from './api';
 import { DepartmentAccordion } from './department-accordion';
+import { departmentHeaderActions } from './department-actions';
 import { DepartmentCreateDialog } from './department-create-dialog';
-import { OwnerOnly } from './owner-only';
+import {
+  canManageDepartmentPeople,
+  canManageDepartments,
+  canReadDepartments,
+  canReadPeople,
+} from './navigation';
+import { PermissionDenied } from './permission-denied';
 
 const authenticatedRoute = getRouteApi('/_authenticated');
 
 export function DepartmentsPage() {
   const { auth } = authenticatedRoute.useRouteContext();
   const tenantId = auth.tenant?.id ?? null;
-  const isOwner = tenantId !== null && auth.role === 'OWNER';
+  const canListDepartments =
+    tenantId !== null && canReadDepartments(auth.permissions);
+  const canListPeople = canReadPeople(auth.permissions);
+  const headerActions = departmentHeaderActions({
+    canAddPeople: canManageDepartmentPeople(auth.permissions),
+    canConfigure: canManageDepartments(auth.permissions),
+  });
   const unassignedQuery = useQuery({
     queryKey: ['unassigned-members', tenantId],
     queryFn: () =>
@@ -28,12 +41,12 @@ export function DepartmentsPage() {
         unassigned: true,
         q: '',
       }),
-    enabled: isOwner,
+    enabled: canListDepartments && canListPeople,
   });
   const teamsQuery = useQuery({
     queryKey: ['company-teams', tenantId],
     queryFn: listTeamsRequest,
-    enabled: isOwner,
+    enabled: canListDepartments,
   });
   const [openSections, setOpenSections] = useState<string[]>([]);
   const activeTeams = useMemo(
@@ -57,13 +70,21 @@ export function DepartmentsPage() {
     setOpenSections(value);
   }, []);
 
-  if (!isOwner) {
-    return <OwnerOnly />;
+  if (!canListDepartments) {
+    return (
+      <PermissionDenied
+        description="Você não pode ver os departamentos desta empresa."
+        title="Sem permissão"
+      />
+    );
   }
 
-  const pending = unassignedQuery.isPending || teamsQuery.isPending;
-  const failure = unassignedQuery.error ?? teamsQuery.error;
-  const ready = unassignedQuery.isSuccess && teamsQuery.isSuccess;
+  const pending =
+    teamsQuery.isPending || (canListPeople && unassignedQuery.isPending);
+  const failure =
+    teamsQuery.error ?? (canListPeople ? unassignedQuery.error : null);
+  const ready =
+    teamsQuery.isSuccess && (!canListPeople || unassignedQuery.isSuccess);
 
   return (
     <Card className="min-w-0">
@@ -75,18 +96,21 @@ export function DepartmentsPage() {
               Quem está em cada departamento desta empresa.
             </CardDescription>
           </div>
-          <DepartmentCreateDialog onCreated={onCreated} />
+          {canManageDepartments(auth.permissions) ? (
+            <DepartmentCreateDialog onCreated={onCreated} />
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="min-w-0">
         <DepartmentAccordion
+          actions={headerActions}
           failure={failure}
           onOpenChange={onOpenChange}
           openSections={openSections}
           pending={pending}
           ready={ready}
           teams={activeTeams}
-          unassignedTotal={unassignedQuery.data?.total ?? 0}
+          unassignedTotal={canListPeople ? (unassignedQuery.data?.total ?? 0) : 0}
         />
       </CardContent>
     </Card>

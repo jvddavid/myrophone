@@ -5,7 +5,6 @@ import { getFilesService } from '../../files/runtime';
 import {
   assignCompanyMemberTeam,
   createCompanyAccess,
-  ensureCompanyOwner,
   inviteCompanyMember,
   listCompanyMembers,
   listOwnedCompanies,
@@ -13,18 +12,24 @@ import {
   listTeamMembers,
   removeCompanyMember,
 } from '../company-access';
+import {
+  readCompanyTemplates,
+  readMemberPermissions,
+  replaceCompanyTemplate,
+  replaceMemberPermissions,
+} from '../company-permission-store';
 import { getRequestMeta } from '../request-meta';
 import {
   addTeamMember,
+  createOwnedCompany,
   createTenantTeam,
   createTenantUser,
   ensurePermission,
   listTenantActionLogs,
   listTenantTeams,
   listTenantUsers,
-  removeTeamMember,
-  createOwnedCompany,
   readOwnedCompany,
+  removeTeamMember,
   requireAuthContext,
   requireTenantContext,
   updateOwnedCompany,
@@ -135,6 +140,17 @@ const memberParamsSchema = t.Object({
   userId: t.String({ minLength: 1 }),
 });
 
+const permissionKeysSchema = t.Array(t.String({ minLength: 1 }));
+
+const permissionTemplateBodySchema = t.Object({
+  role: t.Union([t.Literal('ADMIN'), t.Literal('USER')]),
+  permissionKeys: permissionKeysSchema,
+});
+
+const memberPermissionBodySchema = t.Object({
+  permissionKeys: permissionKeysSchema,
+});
+
 const assignTeamBodySchema = t.Object({
   teamId: t.String({ minLength: 1 }),
 });
@@ -201,6 +217,74 @@ export const managementRoutes = new Elysia()
       return toErrorResponse(error, status);
     }
   })
+  .get('/companies/permission-templates', async ({ request, status }) => {
+    try {
+      const auth = requireTenantContext(await requireAuthContext(request));
+      ensurePermission(auth, 'permissions.manage');
+
+      return await readCompanyTemplates(auth.tenant.id);
+    } catch (error) {
+      return toErrorResponse(error, status);
+    }
+  })
+  .put(
+    '/companies/permission-templates',
+    async ({ body, request, status }) => {
+      try {
+        const auth = requireTenantContext(await requireAuthContext(request));
+        ensurePermission(auth, 'permissions.manage');
+
+        return await replaceCompanyTemplate(
+          {
+            tenantId: auth.tenant.id,
+            actorUserId: auth.user.id,
+            role: body.role,
+            permissionKeys: body.permissionKeys,
+          },
+          getRequestMeta(request),
+        );
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    { body: permissionTemplateBodySchema },
+  )
+  .get(
+    '/companies/members/:userId/permissions',
+    async ({ params, request, status }) => {
+      try {
+        const auth = requireTenantContext(await requireAuthContext(request));
+        ensurePermission(auth, 'permissions.manage');
+
+        return await readMemberPermissions(auth.tenant.id, params.userId);
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    { params: memberParamsSchema },
+  )
+  .put(
+    '/companies/members/:userId/permissions',
+    async ({ params, body, request, status }) => {
+      try {
+        const auth = requireTenantContext(await requireAuthContext(request));
+        ensurePermission(auth, 'permissions.manage');
+
+        return await replaceMemberPermissions(
+          {
+            tenantId: auth.tenant.id,
+            actorUserId: auth.user.id,
+            targetUserId: params.userId,
+            permissionKeys: body.permissionKeys,
+          },
+          getRequestMeta(request),
+        );
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    { params: memberParamsSchema, body: memberPermissionBodySchema },
+  )
   .get('/teams', async ({ request, status }) => {
     try {
       const auth = requireTenantContext(await requireAuthContext(request));
@@ -219,12 +303,6 @@ export const managementRoutes = new Elysia()
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'teams.manage');
-
-        const requestedIcon = body.icon?.trim() ?? '';
-
-        if (requestedIcon.length > 0) {
-          ensureCompanyOwner(auth);
-        }
 
         const team = await createTenantTeam(
           {
@@ -254,7 +332,7 @@ export const managementRoutes = new Elysia()
     async ({ params, body, request, status }) => {
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
-        ensureCompanyOwner(auth);
+        ensurePermission(auth, 'teams.manage');
 
         return await updateTenantTeam(
           {
@@ -306,7 +384,7 @@ export const managementRoutes = new Elysia()
     async ({ params, query, request, status }) => {
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
-        ensureCompanyOwner(auth);
+        ensurePermission(auth, 'teams.read');
 
         return await listTeamMembers(auth.tenant.id, params.teamId, {
           q: query.q,
@@ -327,7 +405,7 @@ export const managementRoutes = new Elysia()
     async ({ params, query, request, status }) => {
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
-        ensureCompanyOwner(auth);
+        ensurePermission(auth, 'teams.members.manage');
 
         return await listTeamCandidates(auth.tenant.id, params.teamId, {
           q: query.q,
@@ -410,6 +488,10 @@ export const managementRoutes = new Elysia()
         const auth = requireTenantContext(await requireAuthContext(request));
         ensurePermission(auth, 'users.manage');
 
+        if (body.roleName === 'OWNER') {
+          ensurePermission(auth, 'permissions.manage');
+        }
+
         const user = await createTenantUser(
           {
             tenantId: auth.tenant.id,
@@ -456,7 +538,7 @@ export const managementRoutes = new Elysia()
     async ({ body, request, status }) => {
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
-        ensureCompanyOwner(auth);
+        ensurePermission(auth, 'users.manage');
         const invited = await inviteCompanyMember(
           {
             tenantId: auth.tenant.id,
@@ -477,7 +559,7 @@ export const managementRoutes = new Elysia()
     async ({ body, request, status }) => {
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
-        ensureCompanyOwner(auth);
+        ensurePermission(auth, 'users.manage');
         const created = await createCompanyAccess(
           {
             actorUserId: auth.user.id,
@@ -501,8 +583,9 @@ export const managementRoutes = new Elysia()
     async ({ query, request, status }) => {
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
-        ensureCompanyOwner(auth);
-        const unassigned = query.unassigned === '1' || query.unassigned === 'true';
+        ensurePermission(auth, 'users.read');
+        const unassigned =
+          query.unassigned === '1' || query.unassigned === 'true';
 
         return await listCompanyMembers(auth.tenant.id, {
           q: query.q,
@@ -521,12 +604,13 @@ export const managementRoutes = new Elysia()
     async ({ params, request, status }) => {
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
-        ensureCompanyOwner(auth);
+        ensurePermission(auth, 'users.manage');
         return await removeCompanyMember(
           {
             tenantId: auth.tenant.id,
             actorUserId: auth.user.id,
             targetUserId: params.userId,
+            actorCanEditOwners: auth.permissions.includes('permissions.manage'),
           },
           getRequestMeta(request),
         );
@@ -619,7 +703,7 @@ export const managementRoutes = new Elysia()
     async ({ params, body, request, status }) => {
       try {
         const auth = requireTenantContext(await requireAuthContext(request));
-        ensureCompanyOwner(auth);
+        ensurePermission(auth, 'teams.members.manage');
         return await assignCompanyMemberTeam(
           {
             tenantId: auth.tenant.id,

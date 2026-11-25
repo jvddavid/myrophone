@@ -1,47 +1,13 @@
 import { getPrisma } from '../../core/db/prisma';
 import { AppError } from '../../core/errors/app-error';
+import { copyRoleTemplateGrants } from './company-permission-store';
+import { grantsAllow } from './company-permissions';
 import { asType } from './db-types';
 import { normalizeName } from './input-rules';
 import { hashPassword } from './password';
 import { normalizePhone } from './phone';
 import type { RequestMeta } from './request-meta';
 import { resolveTenantRoleId } from './tenant-bootstrap';
-
-export function ensureCompanyOwner(auth: { role: string | null }): void {
-  if (auth.role !== 'OWNER') {
-    throw new AppError({
-      statusCode: 403,
-      code: 'NOT_COMPANY_OWNER',
-      message: 'Only the company owner can manage access.',
-    });
-  }
-}
-
-export async function assertTenantOwner(
-  userId: string,
-  tenantId: string,
-): Promise<void> {
-  const prisma = await getPrisma();
-  const membership = asType<{ id: string } | null>(
-    await prisma.membership.findFirst({
-      where: {
-        userId,
-        tenantId,
-        status: 'ACTIVE',
-        role: { name: 'OWNER' },
-      },
-      select: { id: true },
-    }),
-  );
-
-  if (!membership) {
-    throw new AppError({
-      statusCode: 403,
-      code: 'NOT_COMPANY_OWNER',
-      message: 'Only the company owner can manage this company.',
-    });
-  }
-}
 
 export async function inviteCompanyMember(
   input: { tenantId: string; actorUserId: string; email: string },
@@ -118,6 +84,11 @@ export async function inviteCompanyMember(
         select: { id: true },
       }),
     );
+    await copyRoleTemplateGrants(transaction, {
+      tenantId: input.tenantId,
+      membershipId: membership.id,
+      role: 'USER',
+    });
 
     await transaction.actionLog.create({
       data: {
@@ -177,23 +148,44 @@ export async function createCompanyAccess(
   const prisma = await getPrisma();
 
   return prisma.$transaction(async (transaction) => {
-    const owned = asType<Array<{ tenantId: string }>>(
+    const access = asType<
+      Array<{
+        tenantId: string;
+        role: { name: string };
+        permissionGrants: Array<{ permissionKey: string }>;
+      }>
+    >(
       await transaction.membership.findMany({
         where: {
           userId: input.actorUserId,
           status: 'ACTIVE',
           tenantId: { in: tenantIds },
-          role: { name: 'OWNER' },
         },
-        select: { tenantId: true },
+        select: {
+          tenantId: true,
+          role: { select: { name: true } },
+          permissionGrants: { select: { permissionKey: true } },
+        },
       }),
     );
+    const allowedTenants = new Set(
+      access
+        .filter((membership) =>
+          grantsAllow(
+            membership.role.name,
+            membership.permissionGrants.map((grant) => grant.permissionKey),
+            'users.manage',
+          ),
+        )
+        .map((membership) => membership.tenantId),
+    );
 
-    if (owned.length !== tenantIds.length) {
+    if (allowedTenants.size !== tenantIds.length) {
       throw new AppError({
         statusCode: 403,
         code: 'COMPANY_NOT_OWNED',
-        message: 'You can only add this person to a company you own.',
+        message:
+          'You can only add this person to a company where you can manage users.',
       });
     }
 
@@ -285,6 +277,11 @@ export async function createCompanyAccess(
           select: { id: true },
         }),
       );
+      await copyRoleTemplateGrants(transaction, {
+        tenantId: company.tenantId,
+        membershipId: membership.id,
+        role: 'USER',
+      });
       await transaction.teamMembership.create({
         data: {
           teamId: team.id,
@@ -406,7 +403,9 @@ function memberPageWindow(input: MemberListInput): {
   };
 }
 
-function memberSearchFilter(q: string | undefined): Record<string, unknown> | null {
+function memberSearchFilter(
+  q: string | undefined,
+): Record<string, unknown> | null {
   const term = q?.trim();
 
   if (!term) {
@@ -569,7 +568,12 @@ export async function listTeamCandidates(
 }
 
 export async function removeCompanyMember(
-  input: { tenantId: string; actorUserId: string; targetUserId: string },
+  input: {
+    tenantId: string;
+    actorUserId: string;
+    targetUserId: string;
+    actorCanEditOwners: boolean;
+  },
   requestMeta: RequestMeta,
 ): Promise<{ removed: true }> {
   const prisma = await getPrisma();
@@ -606,6 +610,14 @@ export async function removeCompanyMember(
     }
 
     if (membership.status === 'ACTIVE' && membership.role.name === 'OWNER') {
+      if (!input.actorCanEditOwners) {
+        throw new AppError({
+          statusCode: 403,
+          code: 'OWNER_ACCESS_LOCKED',
+          message: 'The company owner access cannot be changed.',
+        });
+      }
+
       const ownerCount = asType<number>(
         await transaction.membership.count({
           where: {

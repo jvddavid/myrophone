@@ -15,6 +15,7 @@ import {
 import { CompanySwitcher } from './company-switcher';
 import { NavUser } from './nav-user';
 import type { CompanyIdentity } from './company-profile';
+import type { SidebarDestination } from '../access/navigation';
 
 export function AppSidebar({
   companies,
@@ -22,7 +23,7 @@ export function AppSidebar({
   user,
   onSwitch,
   onLogout,
-  showAccess,
+  destinations,
   showCompanySettings,
 }: {
   companies: CompanyIdentity[];
@@ -34,7 +35,7 @@ export function AppSidebar({
   };
   onSwitch: (companyId: string) => void;
   onLogout: () => void;
-  showAccess: boolean;
+  destinations: readonly SidebarDestination[];
   showCompanySettings: boolean;
 }) {
   return (
@@ -51,33 +52,35 @@ export function AppSidebar({
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Painel">
-                <Link to="/">
-                  <LayoutDashboard />
-                  <span>Painel</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            {showAccess ? (
-              <>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Acessos">
-                    <Link to="/acessos">
-                      <Users />
-                      <span>Acessos</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Departamentos">
-                    <Link to="/departamentos">
-                      <Building2 />
-                      <span>Departamentos</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </>
+            {destinations.includes('panel') ? (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Painel">
+                  <Link to="/">
+                    <LayoutDashboard />
+                    <span>Painel</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ) : null}
+            {destinations.includes('access') ? (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Acessos">
+                  <Link to="/acessos">
+                    <Users />
+                    <span>Acessos</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ) : null}
+            {destinations.includes('departments') ? (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Departamentos">
+                  <Link to="/departamentos">
+                    <Building2 />
+                    <span>Departamentos</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             ) : null}
           </SidebarMenu>
         </SidebarGroup>

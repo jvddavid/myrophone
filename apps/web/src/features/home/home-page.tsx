@@ -23,6 +23,8 @@ import { showCreateCompany } from '../auth/show-create-company';
 import { saveSession } from '../auth/session';
 import { readTokens } from '../auth/token-store';
 import { queryClient } from '../../query-client';
+import { PermissionDenied } from '../access/permission-denied';
+import { canViewPanel } from '../access/navigation';
 import { healthQueryOptions } from './health-query';
 
 const authenticatedRoute = getRouteApi('/_authenticated');
@@ -90,6 +92,15 @@ function CompanyPanel() {
 
   if (!tenant) {
     return null;
+  }
+
+  if (!canViewPanel(auth.teamPermissions)) {
+    return (
+      <PermissionDenied
+        description="Você não pode ver o painel desta empresa."
+        title="Sem permissão"
+      />
+    );
   }
 
   return (

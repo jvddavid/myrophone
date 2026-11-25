@@ -7,6 +7,7 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { brazilPhoneInvalidMessage } from '@/lib/brazil-phone';
 import { AuthRequestError, registerRequest } from './api';
 import { AuthScreen } from './auth-screen';
+import { needsEmailActivation } from './email-activation';
 import { registerPasswordError } from './register-form';
 import { saveSession } from './session';
 
@@ -72,7 +73,9 @@ export function RegisterPage() {
       })
         .then((session) => {
           saveSession(session);
-          return navigate({ to: '/' });
+          return navigate({
+            to: needsEmailActivation(session) ? '/ativar' : '/',
+          });
         })
         .catch((reason: unknown) => {
           if (reason instanceof AuthRequestError) {

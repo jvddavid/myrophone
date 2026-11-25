@@ -1,7 +1,7 @@
 import { getRouteApi } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MailPlus, Trash2 } from 'lucide-react';
-import { type ChangeEvent, type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type ChangeEvent, type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -47,15 +47,24 @@ import {
   memberPageSize,
   removeMemberRequest,
   type CompanyMember,
+  type MemberListPage,
 } from './api';
+import { CompanyTemplates } from './company-templates';
 import { CreateAccessDialog } from './create-access-dialog';
 import { MemberAvatar } from './member-avatar';
 import { MemberEmpty, MemberPager, MemberSearchField } from './member-list-ui';
+import { MemberPermissionsButton } from './member-permissions';
 import { invalidateMemberLists } from './member-queries';
 import { useMemberQueryState } from './member-query-state';
 import { isAbortError, memberSearchRetry, runMemberSearch } from './member-search';
 import { roleBadgeVariant, roleLabel } from './messages';
-import { OwnerOnly } from './owner-only';
+import {
+  canEditPermissions,
+  canManagePeople,
+  canReadPeople,
+  canRemoveMember,
+} from './navigation';
+import { PermissionDenied } from './permission-denied';
 import { RemovalConfirmDialog } from './removal-confirm-dialog';
 
 const authenticatedRoute = getRouteApi('/_authenticated');
@@ -69,7 +78,9 @@ const noHitsDescription = 'Nenhuma pessoa corresponde a essa busca.';
 export function AccessPage() {
   const { auth } = authenticatedRoute.useRouteContext();
   const tenantId = auth.tenant?.id ?? null;
-  const isOwner = tenantId !== null && auth.role === 'OWNER';
+  const canListPeople = tenantId !== null && canReadPeople(auth.permissions);
+  const canChangePeople = canManagePeople(auth.permissions);
+  const canChangePermissions = canEditPermissions(auth.permissions);
   const { term, page, snapshotRef, commitTerm, onPrevious, onNext, onPageChange } =
     useMemberQueryState();
   const members = useQuery({
@@ -84,7 +95,7 @@ export function AccessPage() {
       );
     },
     retry: memberSearchRetry,
-    enabled: isOwner,
+    enabled: canListPeople,
   });
   const refetchMembers = members.refetch;
 
@@ -116,67 +127,160 @@ export function AccessPage() {
     }
   }, [members.data, onPageChange, page]);
 
-  if (!isOwner) {
-    return <OwnerOnly />;
+  if (!canListPeople) {
+    return (
+      <PermissionDenied
+        description="Você não pode ver as pessoas desta empresa."
+        title="Sem permissão"
+      />
+    );
   }
 
-  const listed = members.data;
   const searching = term.length > 0;
 
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1.5">
-            <CardTitle>Acessos</CardTitle>
-            <CardDescription>
-              Pessoas que podem entrar nesta empresa.
-            </CardDescription>
+    <div className="flex min-w-0 flex-col gap-4">
+      {canChangePermissions ? <CompanyTemplates /> : null}
+      <Card className="min-w-0">
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1.5">
+              <CardTitle>Acessos</CardTitle>
+              <CardDescription>
+                Pessoas que podem entrar nesta empresa.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <PeopleActions canChangePeople={canChangePeople} />
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <InviteDialog />
-            <CreateAccessDialog />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex min-w-0 flex-col gap-4">
-        <MemberSearchField
-          id="access-search"
-          onSearch={onSearch}
-          onSearchNow={onSearchNow}
-          pending={members.isFetching}
-        />
-        {members.isPending ? <Skeleton className="h-16 w-full" /> : null}
-        {members.isError && !isAbortError(members.error) ? (
-          <p className="text-sm text-destructive" role="alert">
-            {accessFailureText(members.error)}
-          </p>
-        ) : null}
-        {members.isSuccess && listed && listed.total === 0 ? (
-          <MemberEmpty
-            description={searching ? noHitsDescription : noPeopleDescription}
-            title={searching ? noHitsTitle : noPeopleTitle}
+        </CardHeader>
+        <CardContent className="flex min-w-0 flex-col gap-4">
+          <MemberSearchField
+            id="access-search"
+            onSearch={onSearch}
+            onSearchNow={onSearchNow}
+            pending={members.isFetching}
           />
-        ) : null}
-        {members.isSuccess && listed && listed.total > 0 ? (
-          <>
-            <ItemGroup className="gap-3">
-              {listed.members.map((member) => (
-                <MemberRow key={member.userId} member={member} />
-              ))}
-            </ItemGroup>
-            <MemberPager
-              onNext={onNext}
-              onPageChange={onPageChange}
-              onPrevious={onPrevious}
-              page={listed.page}
-              pageSize={listed.pageSize}
-              total={listed.total}
+          <AccessMemberResults
+            canChangePermissions={canChangePermissions}
+            members={members}
+            onNext={onNext}
+            onPageChange={onPageChange}
+            onPrevious={onPrevious}
+            permissions={auth.permissions}
+            searching={searching}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PeopleActions({ canChangePeople }: { canChangePeople: boolean }) {
+  if (!canChangePeople) {
+    return null;
+  }
+
+  return (
+    <>
+      <InviteDialog />
+      <CreateAccessDialog />
+    </>
+  );
+}
+
+function MemberActions({
+  member,
+  permissions,
+  canChangePermissions,
+}: {
+  member: CompanyMember;
+  permissions: readonly string[];
+  canChangePermissions: boolean;
+}) {
+  return (
+    <>
+      {canChangePermissions ? <MemberPermissionsButton member={member} /> : null}
+      {canRemoveMember(member.role, permissions) ? (
+        <RemoveMemberDialog member={member} />
+      ) : null}
+    </>
+  );
+}
+
+function AccessMemberResults({
+  members,
+  searching,
+  permissions,
+  canChangePermissions,
+  onPrevious,
+  onNext,
+  onPageChange,
+}: {
+  members: {
+    isPending: boolean;
+    isError: boolean;
+    isSuccess: boolean;
+    error: unknown;
+    data?: MemberListPage;
+  };
+  searching: boolean;
+  permissions: readonly string[];
+  canChangePermissions: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  onPageChange: (page: number) => void;
+}) {
+  const listed = members.data;
+
+  if (members.isPending) {
+    return <Skeleton className="h-16 w-full" />;
+  }
+
+  if (members.isError && !isAbortError(members.error)) {
+    return (
+      <p className="text-sm text-destructive" role="alert">
+        {accessFailureText(members.error)}
+      </p>
+    );
+  }
+
+  if (members.isSuccess && listed && listed.total === 0) {
+    return (
+      <MemberEmpty
+        description={searching ? noHitsDescription : noPeopleDescription}
+        title={searching ? noHitsTitle : noPeopleTitle}
+      />
+    );
+  }
+
+  if (!members.isSuccess || !listed || listed.total === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <ItemGroup className="gap-3">
+        {listed.members.map((member) => (
+          <MemberRow key={member.userId} member={member}>
+            <MemberActions
+              canChangePermissions={canChangePermissions}
+              member={member}
+              permissions={permissions}
             />
-          </>
-        ) : null}
-      </CardContent>
-    </Card>
+          </MemberRow>
+        ))}
+      </ItemGroup>
+      <MemberPager
+        onNext={onNext}
+        onPageChange={onPageChange}
+        onPrevious={onPrevious}
+        page={listed.page}
+        pageSize={listed.pageSize}
+        total={listed.total}
+      />
+    </>
   );
 }
 
@@ -262,7 +366,37 @@ function InviteDialog() {
   );
 }
 
-function MemberRow({ member }: { member: CompanyMember }) {
+function MemberRow({
+  member,
+  children,
+}: {
+  member: CompanyMember;
+  children?: ReactNode;
+}) {
+  return (
+    <Item className="min-w-0" variant="outline">
+      <ItemMedia>
+        <MemberAvatar
+          avatarUrl={member.avatarUrl}
+          email={member.email}
+          name={member.name}
+        />
+      </ItemMedia>
+      <ItemContent className="min-w-0">
+        <ItemTitle className="break-words">{member.name}</ItemTitle>
+        <ItemDescription className="break-all">{member.email}</ItemDescription>
+      </ItemContent>
+      <ItemActions className="ml-auto w-full shrink-0 flex-wrap justify-end sm:w-auto">
+        <Badge variant={roleBadgeVariant(member.role)}>
+          {roleLabel(member.role)}
+        </Badge>
+        {children}
+      </ItemActions>
+    </Item>
+  );
+}
+
+function RemoveMemberDialog({ member }: { member: CompanyMember }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -293,40 +427,22 @@ function MemberRow({ member }: { member: CompanyMember }) {
   }, [member.userId, queryClient]);
 
   return (
-    <Item className="min-w-0" variant="outline">
-      <ItemMedia>
-        <MemberAvatar
-          avatarUrl={member.avatarUrl}
-          email={member.email}
-          name={member.name}
-        />
-      </ItemMedia>
-      <ItemContent className="min-w-0">
-        <ItemTitle className="break-words">{member.name}</ItemTitle>
-        <ItemDescription className="break-all">{member.email}</ItemDescription>
-      </ItemContent>
-      <ItemActions className="ml-auto w-full shrink-0 flex-wrap justify-end sm:w-auto">
-        <Badge variant={roleBadgeVariant(member.role)}>
-          {roleLabel(member.role)}
-        </Badge>
-        <AlertDialog onOpenChange={onOpenChange} open={open}>
-          <AlertDialogTrigger asChild>
-            <Button type="button" variant="destructive">
-              <Trash2 />
-              Remover
-            </Button>
-          </AlertDialogTrigger>
-          <RemovalConfirmDialog
-            confirmIcon={Trash2}
-            confirmLabel="Remover"
-            description={`${member.name} perde o acesso aos dados desta empresa. A conta continua e o acesso às outras empresas não muda.`}
-            error={error}
-            onConfirm={onRemove}
-            pending={pending}
-            title="Remover desta empresa"
-          />
-        </AlertDialog>
-      </ItemActions>
-    </Item>
+    <AlertDialog onOpenChange={onOpenChange} open={open}>
+      <AlertDialogTrigger asChild>
+        <Button type="button" variant="destructive">
+          <Trash2 />
+          Remover
+        </Button>
+      </AlertDialogTrigger>
+      <RemovalConfirmDialog
+        confirmIcon={Trash2}
+        confirmLabel="Remover"
+        description={`${member.name} perde o acesso aos dados desta empresa. A conta continua e o acesso às outras empresas não muda.`}
+        error={error}
+        onConfirm={onRemove}
+        pending={pending}
+        title="Remover desta empresa"
+      />
+    </AlertDialog>
   );
 }

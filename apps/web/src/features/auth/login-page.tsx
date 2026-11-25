@@ -4,6 +4,7 @@ import { IconInput } from '@/components/ui/icon-input';
 import { Label } from '@/components/ui/label';
 import { loginRequest, AuthRequestError } from './api';
 import { AuthScreen } from './auth-screen';
+import { needsEmailActivation } from './email-activation';
 import { saveSession } from './session';
 
 interface LoginValues {
@@ -39,7 +40,9 @@ export function LoginPage() {
       })
         .then((session) => {
           saveSession(session);
-          return navigate({ to: '/' });
+          return navigate({
+            to: needsEmailActivation(session) ? '/ativar' : '/',
+          });
         })
         .catch((reason: unknown) => {
           if (reason instanceof AuthRequestError) {

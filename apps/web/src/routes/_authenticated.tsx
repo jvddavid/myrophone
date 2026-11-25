@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { AuthenticatedLayout } from '../features/auth/authenticated-layout';
+import { needsEmailActivation } from '../features/auth/email-activation';
 import { ensureSession } from '../features/auth/session';
 
 export const Route = createFileRoute('/_authenticated')({
@@ -8,6 +9,10 @@ export const Route = createFileRoute('/_authenticated')({
 
     if (!auth) {
       throw redirect({ to: '/login' });
+    }
+
+    if (needsEmailActivation(auth)) {
+      throw redirect({ to: '/ativar' });
     }
 
     return { auth };

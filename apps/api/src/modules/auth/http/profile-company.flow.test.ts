@@ -183,7 +183,7 @@ describe('owned company management', () => {
     const owned = await getAuth('/companies/owned', owner.accessToken);
 
     expect(forbidden.status).toBe(403);
-    expect(forbidden.body.error).toBe('NOT_COMPANY_OWNER');
+    expect(forbidden.body.error).toBe('FORBIDDEN');
     expect(missing.status).toBe(403);
     expect(updated.status).toBe(200);
     expect(updated.body).toMatchObject({
@@ -262,7 +262,7 @@ describe('owned company management', () => {
         name: 'Pessoa Teste',
         email: `logo-member-${crypto.randomUUID()}@auth-test.local`,
         password,
-        roleName: 'ADMIN',
+        roleName: 'USER',
       },
       owner.accessToken,
     );
@@ -286,6 +286,6 @@ describe('owned company management', () => {
     );
 
     expect(uploaded.status).toBe(403);
-    expect(uploaded.body.error).toBe('NOT_COMPANY_OWNER');
+    expect(uploaded.body.error).toBe('FORBIDDEN');
   });
 });

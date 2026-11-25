@@ -51,8 +51,23 @@ describe('accessErrorMessage', () => {
     expect(accessErrorMessage('NOT_COMPANY_OWNER')).toBe(
       'Só o proprietário desta empresa pode gerenciar acessos.',
     );
+    expect(accessErrorMessage('FORBIDDEN')).toBe(
+      'Você não tem permissão para esta ação.',
+    );
+    expect(accessErrorMessage('INVALID_PERMISSION_KEYS')).toBe(
+      'Alguma permissão não pode ser concedida.',
+    );
+    expect(accessErrorMessage('OWNER_PERMISSIONS_LOCKED')).toBe(
+      'O proprietário sempre tem acesso completo.',
+    );
+    expect(accessErrorMessage('OWNER_ACCESS_LOCKED')).toBe(
+      'O acesso do proprietário não pode ser alterado.',
+    );
+    expect(accessErrorMessage('INVALID_TEMPLATE_ROLE')).toBe(
+      'Só os modelos de administrador e usuário podem ser editados.',
+    );
     expect(accessErrorMessage('COMPANY_NOT_OWNED')).toBe(
-      'Você só pode incluir uma empresa da qual é proprietário.',
+      'Você só pode incluir uma empresa onde pode gerenciar usuários.',
     );
     expect(accessErrorMessage('TEAM_NOT_IN_COMPANY')).toBe(
       'O departamento não pertence a esta empresa.',

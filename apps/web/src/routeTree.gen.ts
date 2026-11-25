@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as AtivarRouteImport } from './routes/ativar'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedDepartamentosRouteImport } from './routes/_authenticated/departamentos'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
@@ -29,6 +30,11 @@ const LoginRoute = LoginRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AtivarRoute = AtivarRouteImport.update({
+  id: '/ativar',
+  path: '/ativar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/ativar': typeof AtivarRoute
   '/departamentos': typeof AuthenticatedDepartamentosRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/acessos/': typeof AuthenticatedAcessosIndexRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/ativar': typeof AtivarRoute
   '/departamentos': typeof AuthenticatedDepartamentosRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/': typeof AuthenticatedIndexRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/ativar': typeof AtivarRoute
   '/_authenticated/departamentos': typeof AuthenticatedDepartamentosRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -83,14 +92,28 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/register' | '/departamentos' | '/perfil' | '/acessos/'
+    | '/'
+    | '/login'
+    | '/register'
+    | '/ativar'
+    | '/departamentos'
+    | '/perfil'
+    | '/acessos/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/register' | '/departamentos' | '/perfil' | '/' | '/acessos'
+  to:
+    | '/login'
+    | '/register'
+    | '/ativar'
+    | '/departamentos'
+    | '/perfil'
+    | '/'
+    | '/acessos'
   id:
     | '__root__'
     | '/_authenticated'
     | '/login'
     | '/register'
+    | '/ativar'
     | '/_authenticated/departamentos'
     | '/_authenticated/perfil'
     | '/_authenticated/'
@@ -101,6 +124,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
+  AtivarRoute: typeof AtivarRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -124,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ativar': {
+      id: '/ativar'
+      path: '/ativar'
+      fullPath: '/ativar'
+      preLoaderRoute: typeof AtivarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -179,6 +210,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
+  AtivarRoute: AtivarRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

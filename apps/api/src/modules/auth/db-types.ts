@@ -119,6 +119,9 @@ export interface MembershipWithRelations extends MembershipRecord {
       permission: PermissionRecord;
     }>;
   };
+  permissionGrants?: Array<{
+    permissionKey: string;
+  }>;
   teams: Array<
     TeamMembershipRecord & {
       team: TeamWithPermissions;
@@ -144,6 +147,7 @@ export interface SimpleDbDelegate {
   createMany(args: PrismaArgs): Promise<unknown>;
   upsert(args: PrismaArgs): Promise<unknown>;
   update(args: PrismaArgs): Promise<unknown>;
+  updateMany(args: PrismaArgs): Promise<unknown>;
   delete(args: PrismaArgs): Promise<unknown>;
   deleteMany(args: PrismaArgs): Promise<unknown>;
   count(args: PrismaArgs): Promise<unknown>;
@@ -156,6 +160,8 @@ export interface PrismaDb {
   permission: SimpleDbDelegate;
   rolePermission: SimpleDbDelegate;
   membership: SimpleDbDelegate;
+  companyPermissionTemplate: SimpleDbDelegate;
+  membershipPermissionGrant: SimpleDbDelegate;
   session: SimpleDbDelegate;
   actionLog: SimpleDbDelegate;
   team: SimpleDbDelegate;
@@ -163,6 +169,7 @@ export interface PrismaDb {
   teamPermissionAssignment: SimpleDbDelegate;
   teamMembership: SimpleDbDelegate;
   storedFile: SimpleDbDelegate;
+  emailVerification: SimpleDbDelegate;
   $transaction<T>(fn: (transaction: PrismaDb) => Promise<T>): Promise<T>;
   $disconnect?(): Promise<void>;
 }

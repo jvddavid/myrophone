@@ -244,9 +244,10 @@ describe('POST /companies/members/invite', () => {
     expect(unknown.body.error).toBe('USER_NOT_REGISTERED');
     expect(duplicate.status).toBe(409);
     expect(duplicate.body.error).toBe('ALREADY_IN_COMPANY');
-    expect(asAdmin.status).toBe(403);
-    expect(asAdmin.body.error).toBe('NOT_COMPANY_OWNER');
-    expect(asUser.body.error).toBe('NOT_COMPANY_OWNER');
+    expect(asAdmin.status).toBe(409);
+    expect(asAdmin.body.error).toBe('ALREADY_IN_COMPANY');
+    expect(asUser.status).toBe(403);
+    expect(asUser.body.error).toBe('FORBIDDEN');
     expect(badRole.status).toBe(422);
     expect(badRole.body.error).toBe('VALIDATION_ERROR');
     expect(anonymous.status).toBe(401);
@@ -421,8 +422,7 @@ describe('POST /companies/members', () => {
     expect(emptyList.body.error).toBe('VALIDATION_ERROR');
     expect(taken.status).toBe(409);
     expect(taken.body.error).toBe('EMAIL_IN_USE');
-    expect(asAdmin.status).toBe(403);
-    expect(asAdmin.body.error).toBe('NOT_COMPANY_OWNER');
+    expect(asAdmin.status).toBe(201);
     expect(createdUser).toBeNull();
   });
 });
@@ -676,8 +676,7 @@ describe('GET /companies/members pagination', () => {
     ]);
     expect(byPage.body.total).toBe(22);
     expect((byPage.body.members as unknown[]).length).toBeLessThanOrEqual(20);
-    expect(denied.status).toBe(403);
-    expect(denied.body.error).toBe('NOT_COMPANY_OWNER');
+    expect(denied.status).toBe(200);
   });
 
   it('pages one department and hides people already in it from candidates', async () => {
@@ -796,8 +795,7 @@ describe('GET /companies/members pagination', () => {
       expect.objectContaining({ userId: outside.id, name: 'Diana Fora' }),
     ]);
     expect(createdIds).toHaveLength(3);
-    expect(denied.status).toBe(403);
-    expect(denied.body.error).toBe('NOT_COMPANY_OWNER');
+    expect(denied.status).toBe(200);
   });
 });
 
@@ -1017,10 +1015,10 @@ describe('department assignment and owned companies', () => {
 
   it('lets the owner edit a department name and description without changing the slug', async () => {
     const owner = await registerOwner('dept-settings');
-    const admin = await memberToken(
+    const reader = await memberToken(
       owner.accessToken,
-      'ADMIN',
-      'dept-settings-admin',
+      'USER',
+      'dept-settings-user',
     );
     const updated = await patchAuth(
       `/teams/${owner.teamId}`,
@@ -1035,7 +1033,7 @@ describe('department assignment and owned companies', () => {
     const forbidden = await patchAuth(
       `/teams/${owner.teamId}`,
       { name: 'Invasão', description: 'Não' },
-      admin.accessToken,
+      reader.accessToken,
     );
     const listed = await getAuth('/teams', owner.accessToken);
     const team = (
@@ -1067,7 +1065,7 @@ describe('department assignment and owned companies', () => {
       description: null,
     });
     expect(forbidden.status).toBe(403);
-    expect(forbidden.body.error).toBe('NOT_COMPANY_OWNER');
+    expect(forbidden.body.error).toBe('FORBIDDEN');
     expect(team).toMatchObject({
       slug: 'geral',
       name: 'Contábil',
@@ -1078,7 +1076,7 @@ describe('department assignment and owned companies', () => {
 
   it('stores a catalog icon and rejects an unknown one', async () => {
     const owner = await registerOwner('dept-icon');
-    const admin = await memberToken(owner.accessToken, 'ADMIN', 'dept-icon-admin');
+    const reader = await memberToken(owner.accessToken, 'USER', 'dept-icon-user');
     const created = await postAuth(
       '/teams',
       { name: 'Logística', description: 'Entregas', icon: 'truck' },
@@ -1103,7 +1101,7 @@ describe('department assignment and owned companies', () => {
     const forbidden = await patchAuth(
       `/teams/${fiscalId}`,
       { name: 'Logística', icon: 'phone' },
-      admin.accessToken,
+      reader.accessToken,
     );
     const listed = await getAuth('/teams', owner.accessToken);
     const team = (
@@ -1132,7 +1130,7 @@ describe('department assignment and owned companies', () => {
     expect(kept.status).toBe(200);
     expect(kept.body.icon).toBe('scale');
     expect(forbidden.status).toBe(403);
-    expect(forbidden.body.error).toBe('NOT_COMPANY_OWNER');
+    expect(forbidden.body.error).toBe('FORBIDDEN');
     expect(team?.icon).toBe('scale');
     expect(omitted.status).toBe(201);
     expect(omitted.body.icon).toBe(defaultDepartmentIconKey);

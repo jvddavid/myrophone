@@ -29,6 +29,7 @@ model Tenant {
   lastSelectedBy User[]       @relation("UserLastTenant")
   roles       Role[]
   memberships Membership[]
+  permissionTemplates CompanyPermissionTemplate[]
   teams       Team[]
   sessions    Session[]
   actionLogs  ActionLog[]
@@ -52,6 +53,7 @@ model User {
   sessions        Session[]
   actionLogs      ActionLog[]  @relation("ActorActionLogs")
   uploadedFiles   StoredFile[] @relation("StoredFileUploader")
+  emailVerifications EmailVerification[]
 
   @@index([lastTenantId])
 }
@@ -100,12 +102,32 @@ model Membership {
   role      Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
   status    MembershipStatus @default(ACTIVE)
   teams     TeamMembership[]
+  permissionGrants MembershipPermissionGrant[]
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
   @@unique([tenantId, userId])
   @@index([tenantId, roleId])
   @@index([userId])
+}
+
+/// Defaults copied onto future ADMIN and USER members. OWNER is never stored.
+model CompanyPermissionTemplate {
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role          RoleName
+  permissionKey String
+
+  @@id([tenantId, role, permissionKey])
+}
+
+/// Effective grants for one membership. OWNER has none; the catalog is implied.
+model MembershipPermissionGrant {
+  membershipId  String
+  membership    Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  permissionKey String
+
+  @@id([membershipId, permissionKey])
 }
 
 enum TeamMembershipRole {
@@ -161,6 +183,19 @@ model TeamMembership {
 
   @@unique([teamId, membershipId])
   @@index([membershipId])
+}
+
+model EmailVerification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Session {

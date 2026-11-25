@@ -1,3 +1,4 @@
+import { seedCompanyPermissionTemplates } from './company-permission-store';
 import { asType, type PrismaDb } from './db-types';
 import {
   type AppRoleName,
@@ -104,6 +105,8 @@ export async function ensureTenantRbac(
       skipDuplicates: true,
     });
   }
+
+  await seedCompanyPermissionTemplates(db, tenantId);
 
   return roleIds;
 }

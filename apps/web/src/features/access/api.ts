@@ -1,5 +1,6 @@
 import { getApi } from '../../api/client';
 import { accessErrorMessage } from './messages';
+import type { PermissionCatalogEntry } from './permission-groups';
 
 export class AccessRequestError extends Error {
   readonly code: string;
@@ -64,6 +65,25 @@ export interface TeamSummary {
   memberCount: number;
   leaderCount: number;
   permissionKeys: string[];
+}
+
+export interface CompanyPermissionTemplates {
+  templates: {
+    ADMIN: string[];
+    USER: string[];
+  };
+  catalog: PermissionCatalogEntry[];
+}
+
+export interface MemberPermissionSet {
+  userId: string;
+  role: string;
+  locked: boolean;
+  permissionKeys: string[];
+}
+
+export function permissionTemplatesQueryKey(tenantId: string | null) {
+  return ['company-permission-templates', tenantId] as const;
 }
 
 export interface CreateAccessBody {
@@ -521,4 +541,108 @@ export async function removeTeamMemberRequest(
   }
 
   return { removed: true };
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isCatalogEntry(value: unknown): value is PermissionCatalogEntry {
+  return (
+    isRecord(value) &&
+    typeof value.key === 'string' &&
+    typeof value.description === 'string' &&
+    typeof value.group === 'string' &&
+    typeof value.scope === 'string'
+  );
+}
+
+function isPermissionTemplates(
+  value: unknown,
+): value is CompanyPermissionTemplates {
+  return (
+    isRecord(value) &&
+    isRecord(value.templates) &&
+    isStringList(value.templates.ADMIN) &&
+    isStringList(value.templates.USER) &&
+    Array.isArray(value.catalog) &&
+    value.catalog.every(isCatalogEntry)
+  );
+}
+
+function isMemberPermissionSet(value: unknown): value is MemberPermissionSet {
+  return (
+    isRecord(value) &&
+    typeof value.userId === 'string' &&
+    typeof value.role === 'string' &&
+    typeof value.locked === 'boolean' &&
+    isStringList(value.permissionKeys)
+  );
+}
+
+export async function readPermissionTemplatesRequest(): Promise<CompanyPermissionTemplates> {
+  const { data, error } = await getApi().companies['permission-templates'].get();
+  throwResponseError(error);
+
+  if (!isPermissionTemplates(data)) {
+    throw incompleteResponse();
+  }
+
+  return data;
+}
+
+export async function updatePermissionTemplateRequest(
+  role: 'ADMIN' | 'USER',
+  permissionKeys: string[],
+): Promise<{ role: string; permissionKeys: string[] }> {
+  const { data, error } = await getApi().companies['permission-templates'].put({
+    role,
+    permissionKeys,
+  });
+  throwResponseError(error);
+
+  if (
+    !isRecord(data) ||
+    typeof data.role !== 'string' ||
+    !isStringList(data.permissionKeys)
+  ) {
+    throw incompleteResponse();
+  }
+
+  return { role: data.role, permissionKeys: data.permissionKeys };
+}
+
+export async function readMemberPermissionsRequest(
+  userId: string,
+): Promise<MemberPermissionSet> {
+  const { data, error } = await getApi()
+    .companies.members({ userId })
+    .permissions.get();
+  throwResponseError(error);
+
+  if (!isMemberPermissionSet(data)) {
+    throw incompleteResponse();
+  }
+
+  return data;
+}
+
+export async function updateMemberPermissionsRequest(
+  userId: string,
+  permissionKeys: string[],
+): Promise<{ userId: string; permissionKeys: string[] }> {
+  const { data, error } = await getApi()
+    .companies.members({ userId })
+    .permissions.put({ permissionKeys });
+  throwResponseError(error);
+
+  if (
+    !isRecord(data) ||
+    typeof data.userId !== 'string' ||
+    !isStringList(data.permissionKeys)
+  ) {
+    throw incompleteResponse();
+  }
+
+  return { userId: data.userId, permissionKeys: data.permissionKeys };
 }

@@ -1,11 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { AppError } from '../../../core/errors/app-error';
 import { logger } from '../../../core/logger';
-import { assertTenantOwner } from '../../auth/company-access';
+import { assertTenantPermission } from '../../auth/company-permission-store';
 import { getRequestMeta } from '../../auth/request-meta';
 import { requireAuthContext, requireTenantContext } from '../../auth/service';
-import { getFilesService } from '../runtime';
 import { isStoredFilePurpose } from '../rules';
+import { getFilesService } from '../runtime';
 import type { StoredFilePurpose } from '../types';
 
 const fileParamsSchema = t.Object({
@@ -35,14 +35,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-async function readUpload(request: Request, parsedBody: unknown): Promise<{
+async function readUpload(
+  request: Request,
+  parsedBody: unknown,
+): Promise<{
   purpose: StoredFilePurpose;
   tenantId: string | null;
   originalName: string;
   contentType: string;
   bytes: Uint8Array;
 }> {
-  if (isRecord(parsedBody) && ('purpose' in parsedBody || 'file' in parsedBody)) {
+  if (
+    isRecord(parsedBody) &&
+    ('purpose' in parsedBody || 'file' in parsedBody)
+  ) {
     return readUploadFields(parsedBody);
   }
 
@@ -125,7 +131,11 @@ export const filesRoutes = new Elysia()
           });
         }
 
-        await assertTenantOwner(auth.user.id, upload.tenantId);
+        await assertTenantPermission(
+          auth.user.id,
+          upload.tenantId,
+          'tenant.manage',
+        );
         tenantId = upload.tenantId;
       }
 

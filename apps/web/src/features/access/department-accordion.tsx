@@ -1,4 +1,3 @@
-import { Settings, UserPlus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import {
   Accordion,
@@ -27,10 +26,6 @@ import { DepartmentMemberList } from './department-member-list';
 import { DepartmentSettingsDialog } from './department-settings-dialog';
 
 const unassignedValue = 'none';
-const departmentActions: readonly AccordionAction[] = [
-  { type: 'add', icon: UserPlus, description: 'Adicionar' },
-  { type: 'configure', icon: Settings, description: 'Configurar departamento' },
-];
 
 function DepartmentHeading({
   iconKey,
@@ -66,9 +61,11 @@ function NoDepartments() {
 function DepartmentSection({
   team,
   open,
+  actions,
 }: {
   team: TeamSummary;
   open: boolean;
+  actions: readonly AccordionAction[];
 }) {
   const [action, setAction] = useState<string | null>(null);
   const onAction = useCallback((type: string) => {
@@ -79,11 +76,13 @@ function DepartmentSection({
       setAction(null);
     }
   }, []);
+  const canAdd = actions.some((item) => item.type === 'add');
+  const canConfigure = actions.some((item) => item.type === 'configure');
 
   return (
     <>
       <AccordionItemWithActions
-        actions={departmentActions}
+        actions={actions}
         onAction={onAction}
         title={<DepartmentHeading iconKey={team.icon} name={team.name} />}
         value={team.id}
@@ -95,16 +94,20 @@ function DepartmentSection({
           {open ? <DepartmentMemberList key={team.id} teamId={team.id} /> : null}
         </div>
       </AccordionItemWithActions>
-      <DepartmentAddControl
-        onOpenChange={onOpenChange}
-        open={action === 'add'}
-        teamId={team.id}
-      />
-      <DepartmentSettingsDialog
-        onOpenChange={onOpenChange}
-        open={action === 'configure'}
-        team={team}
-      />
+      {canAdd ? (
+        <DepartmentAddControl
+          onOpenChange={onOpenChange}
+          open={action === 'add'}
+          teamId={team.id}
+        />
+      ) : null}
+      {canConfigure ? (
+        <DepartmentSettingsDialog
+          onOpenChange={onOpenChange}
+          open={action === 'configure'}
+          team={team}
+        />
+      ) : null}
     </>
   );
 }
@@ -130,6 +133,7 @@ export function DepartmentAccordion({
   unassignedTotal,
   openSections,
   onOpenChange,
+  actions,
 }: {
   pending: boolean;
   failure: unknown;
@@ -138,6 +142,7 @@ export function DepartmentAccordion({
   unassignedTotal: number;
   openSections: string[];
   onOpenChange: (value: string[]) => void;
+  actions: readonly AccordionAction[];
 }) {
   if (pending && !failure) {
     return <Skeleton className="h-16 w-full" />;
@@ -170,6 +175,7 @@ export function DepartmentAccordion({
     >
       {teams.map((team) => (
         <DepartmentSection
+          actions={actions}
           key={team.id}
           open={openIds.has(team.id)}
           team={team}

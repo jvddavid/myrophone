@@ -1,12 +1,21 @@
 import { Elysia, t } from 'elysia';
 import { AppError } from '../../../core/errors/app-error';
 import { logger } from '../../../core/logger';
+import {
+  confirmEmailCode,
+  confirmEmailToken,
+  issueEmailActivation,
+} from '../../email/activation';
+import { createPrismaEmailActivationStore } from '../../email/activation-store';
+import { resolveEmailDelivery } from '../../email/email-config';
+import { transportFor } from '../../email/mailer';
 import { getFilesService } from '../../files/runtime';
 import { getRequestMeta } from '../request-meta';
 import {
   createFirstCompany,
   loginWithPassword,
   logoutByRefreshToken,
+  openSessionForUserId,
   refreshAuthSession,
   registerAccount,
   requireAuthContext,
@@ -40,6 +49,14 @@ const createCompanyBodySchema = t.Object({
 const switchCompanyBodySchema = t.Object({
   tenantId: t.String({ minLength: 1 }),
   refreshToken: t.String({ minLength: 10 }),
+});
+
+const confirmEmailBodySchema = t.Object({
+  token: t.String({ minLength: 10 }),
+});
+
+const confirmEmailCodeBodySchema = t.Object({
+  code: t.String({ minLength: 6, maxLength: 6 }),
 });
 
 const updateProfileBodySchema = t.Object({
@@ -177,9 +194,87 @@ export const authRoutes = new Elysia()
       body: refreshBodySchema,
     },
   )
+  .post(
+    '/auth/email/confirm',
+    async ({ body, request, status }) => {
+      try {
+        const confirmed = await confirmEmailToken({
+          token: body.token,
+          store: await createPrismaEmailActivationStore(),
+        });
+        return await openSessionForUserId(
+          confirmed.userId,
+          getRequestMeta(request),
+        );
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: confirmEmailBodySchema,
+    },
+  )
+  .post(
+    '/auth/email/code',
+    async ({ body, request, status }) => {
+      try {
+        const auth = await requireAuthContext(request, {
+          allowUnverifiedEmail: true,
+        });
+        await confirmEmailCode({
+          userId: auth.user.id,
+          code: body.code,
+          store: await createPrismaEmailActivationStore(),
+        });
+        return await requireAuthContext(request, {
+          allowUnverifiedEmail: true,
+        });
+      } catch (error) {
+        return toErrorResponse(error, status);
+      }
+    },
+    {
+      body: confirmEmailCodeBodySchema,
+    },
+  )
+  .post('/auth/email/resend', async ({ request, status }) => {
+    try {
+      const auth = await requireAuthContext(request, {
+        allowUnverifiedEmail: true,
+      });
+      const delivery = resolveEmailDelivery();
+
+      if (!delivery.enabled) {
+        throw new AppError({
+          statusCode: 404,
+          code: 'EMAIL_DELIVERY_DISABLED',
+          message: 'Email activation is not enabled.',
+        });
+      }
+
+      if (auth.user.emailVerifiedAt) {
+        return { sent: false };
+      }
+
+      await issueEmailActivation({
+        user: {
+          id: auth.user.id,
+          email: auth.user.email,
+          name: auth.user.name,
+        },
+        store: await createPrismaEmailActivationStore(),
+        delivery,
+        transport: transportFor(delivery.apiKey),
+      });
+
+      return { sent: true };
+    } catch (error) {
+      return toErrorResponse(error, status);
+    }
+  })
   .get('/auth/me', async ({ request, status }) => {
     try {
-      return await requireAuthContext(request);
+      return await requireAuthContext(request, { allowUnverifiedEmail: true });
     } catch (error) {
       return toErrorResponse(error, status);
     }

@@ -33,6 +33,11 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   return fallback;
 }
 
+function optionalEnv(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 function parseCsv(value: string | undefined, fallback: string[]): string[] {
   if (!value) {
     return fallback;
@@ -74,4 +79,13 @@ export const env = {
   S3_PRIVATE_BUCKET: process.env.S3_PRIVATE_BUCKET ?? 'myrophone-private',
   S3_PUBLIC_BASE_URL:
     process.env.S3_PUBLIC_BASE_URL ?? 'http://127.0.0.1:9000/myrophone-public',
+  get RESEND_API_KEY(): string | undefined {
+    return optionalEnv(process.env.RESEND_API_KEY);
+  },
+  get EMAIL_FROM(): string | undefined {
+    return optionalEnv(process.env.EMAIL_FROM);
+  },
+  get APP_WEB_URL(): string | undefined {
+    return optionalEnv(process.env.APP_WEB_URL);
+  },
 };

@@ -12,6 +12,7 @@ export interface AuthProfile {
     emailVerifiedAt: string | Date | null;
     isActive: boolean;
   };
+  emailActivationRequired: boolean;
   tenant: CompanyIdentity | null;
   companies: CompanyIdentity[];
   ownsCompany: boolean;
@@ -52,6 +53,16 @@ const messages: Record<string, string> = {
   UNAUTHORIZED: 'Sua sessão expirou. Entre de novo.',
   COMPANY_CREATE_UNAVAILABLE: 'Esta conta já tem uma empresa.',
   INVALID_REFRESH_TOKEN: 'Sua sessão expirou. Entre de novo.',
+  EMAIL_NOT_VERIFIED: 'Confirme seu e-mail para continuar.',
+  INVALID_EMAIL_TOKEN: 'Este link de ativação não é válido.',
+  EMAIL_TOKEN_USED: 'Este link já foi usado. Peça outro e-mail.',
+  EMAIL_TOKEN_EXPIRED: 'Este link expirou. Peça outro e-mail.',
+  INVALID_EMAIL_CODE: 'Código inválido.',
+  EMAIL_CODE_USED: 'Este código já foi usado. Peça outro e-mail.',
+  EMAIL_CODE_EXPIRED: 'Este código expirou. Peça outro e-mail.',
+  EMAIL_RESEND_LIMIT: 'Espere um minuto antes de pedir outro e-mail.',
+  EMAIL_DELIVERY_FAILED: 'Não foi possível enviar o e-mail de ativação.',
+  EMAIL_DELIVERY_DISABLED: 'A ativação por e-mail não está ligada.',
 };
 
 export function authErrorMessage(code: string, fallback: string): string {

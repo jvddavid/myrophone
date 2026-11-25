@@ -15,7 +15,10 @@ describe('access navigation', () => {
 
     expect(sidebar).toContain('to="/acessos"');
     expect(sidebar).toContain('to="/departamentos"');
-    expect(sidebar).toContain('showAccess');
-    expect(layout).toContain("showAccess={auth.role === 'OWNER'}");
+    expect(sidebar).toContain("destinations.includes('panel')");
+    expect(sidebar).toContain("destinations.includes('access')");
+    expect(sidebar).toContain("destinations.includes('departments')");
+    expect(layout).toContain('sidebarDestinations');
+    expect(layout).not.toContain("auth.role === 'OWNER'");
   });
 });

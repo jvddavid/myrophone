@@ -20,6 +20,7 @@ import { showCompanySettings } from './company-settings-access';
 import { switchCompanyRequest, AuthRequestError } from './api';
 import { logoutSession, saveSession } from './session';
 import { readTokens } from './token-store';
+import { sidebarDestinations } from '../access/navigation';
 
 const authenticatedRoute = getRouteApi('/_authenticated');
 
@@ -76,7 +77,10 @@ export function AuthenticatedLayout() {
         companies={auth.companies}
         onLogout={logout}
         onSwitch={onSwitch}
-        showAccess={auth.role === 'OWNER'}
+        destinations={sidebarDestinations({
+          permissions: auth.permissions,
+          teamPermissions: auth.teamPermissions,
+        })}
         showCompanySettings={showCompanySettings({
           role: auth.role,
           ownsCompany: auth.ownsCompany,

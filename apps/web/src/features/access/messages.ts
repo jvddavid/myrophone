@@ -5,7 +5,14 @@ const messages: Record<string, string> = {
   EMAIL_IN_USE:
     'Este e-mail já tem conta. Convide a pessoa em vez de criar outro acesso.',
   NOT_COMPANY_OWNER: 'Só o proprietário desta empresa pode gerenciar acessos.',
-  COMPANY_NOT_OWNED: 'Você só pode incluir uma empresa da qual é proprietário.',
+  FORBIDDEN: 'Você não tem permissão para esta ação.',
+  INVALID_PERMISSION_KEYS: 'Alguma permissão não pode ser concedida.',
+  OWNER_PERMISSIONS_LOCKED: 'O proprietário sempre tem acesso completo.',
+  OWNER_ACCESS_LOCKED: 'O acesso do proprietário não pode ser alterado.',
+  INVALID_TEMPLATE_ROLE:
+    'Só os modelos de administrador e usuário podem ser editados.',
+  COMPANY_NOT_OWNED:
+    'Você só pode incluir uma empresa onde pode gerenciar usuários.',
   TEAM_NOT_IN_COMPANY: 'O departamento não pertence a esta empresa.',
   TEAM_NOT_FOUND: 'Este departamento não existe nesta empresa.',
   TEAM_SLUG_IN_USE: 'Já existe um departamento com este nome.',
